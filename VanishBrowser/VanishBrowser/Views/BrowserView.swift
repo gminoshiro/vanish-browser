@@ -173,14 +173,14 @@ struct WebView: UIViewRepresentable {
         // コンテキストメニューのカスタマイズ
         func webView(_ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo, completionHandler: @escaping (UIContextMenuConfiguration?) -> Void) {
 
-            // JavaScriptで画像URLを同期的に取得（遅延なし）
+            let linkURL = elementInfo.linkURL
+
+            // 画像検出用のJavaScript（最後にタップされた画像を記録）
             let jsCode = """
             (function() {
-                var elements = document.elementsFromPoint(\(elementInfo.location.x), \(elementInfo.location.y));
-                for (var i = 0; i < elements.length; i++) {
-                    if (elements[i].tagName === 'IMG') {
-                        return { type: 'image', url: elements[i].src || elements[i].currentSrc };
-                    }
+                var lastTappedImage = window.__lastTappedImage;
+                if (lastTappedImage && lastTappedImage.tagName === 'IMG') {
+                    return { type: 'image', url: lastTappedImage.src || lastTappedImage.currentSrc };
                 }
                 return null;
             })();
@@ -188,7 +188,7 @@ struct WebView: UIViewRepresentable {
 
             var detectedImageURL: URL?
 
-            // 同期的に画像URLを取得
+            // JavaScriptで最後にタップされた画像を取得
             let semaphore = DispatchSemaphore(value: 0)
             webView.evaluateJavaScript(jsCode) { result, error in
                 if let dict = result as? [String: String],
@@ -202,7 +202,6 @@ struct WebView: UIViewRepresentable {
             _ = semaphore.wait(timeout: .now() + 0.1)
 
             // リンクまたは画像がある場合のみメニューを表示
-            let linkURL = elementInfo.linkURL
             let imageURL = detectedImageURL
 
             guard linkURL != nil || imageURL != nil else {

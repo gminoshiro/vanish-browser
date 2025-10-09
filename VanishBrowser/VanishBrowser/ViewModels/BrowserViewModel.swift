@@ -83,7 +83,27 @@ class BrowserViewModel: NSObject, ObservableObject {
             forMainFrameOnly: false
         )
 
+        // 画像タップを記録するスクリプト
+        let imageTapScript = WKUserScript(
+            source: """
+            document.addEventListener('touchstart', function(e) {
+                if (e.target && e.target.tagName === 'IMG') {
+                    window.__lastTappedImage = e.target;
+                }
+            }, true);
+
+            document.addEventListener('contextmenu', function(e) {
+                if (e.target && e.target.tagName === 'IMG') {
+                    window.__lastTappedImage = e.target;
+                }
+            }, true);
+            """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+
         configuration.userContentController.addUserScript(mediaDetectionScript)
+        configuration.userContentController.addUserScript(imageTapScript)
 
         self.webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
