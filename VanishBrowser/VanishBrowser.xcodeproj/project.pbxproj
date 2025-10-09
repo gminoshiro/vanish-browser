@@ -75,10 +75,10 @@
 		42BE10642E9734B400CE7895 = {
 			isa = PBXGroup;
 			children = (
-				42BE106F2E9734B400CE7895 /* VanishBrowser */,
 				42BE10822E9734B700CE7895 /* VanishBrowserTests */,
 				42BE108C2E9734B700CE7895 /* VanishBrowserUITests */,
 				42BE106E2E9734B400CE7895 /* Products */,
+				42BE106F2E9734B400CE7895 /* VanishBrowser */,
 			);
 			sourceTree = "<group>";
 		};

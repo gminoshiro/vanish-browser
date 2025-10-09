@@ -1,0 +1,85 @@
+//
+//  BrowserViewModel.swift
+//  VanishBrowser
+//
+//  Created by 簑城玄太 on 2025/10/09.
+//
+
+import Foundation
+import WebKit
+import Combine
+
+class BrowserViewModel: NSObject, ObservableObject {
+    @Published var canGoBack = false
+    @Published var canGoForward = false
+    @Published var currentURL: String = ""
+    @Published var isLoading = false
+
+    let webView: WKWebView
+    private var cancellables = Set<AnyCancellable>()
+
+    override init() {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent() // プライバシー保護：永続化しない
+
+        self.webView = WKWebView(frame: .zero, configuration: configuration)
+        super.init()
+
+        webView.navigationDelegate = self
+
+        // WebViewの状態を監視
+        webView.publisher(for: \.canGoBack)
+            .assign(to: &$canGoBack)
+
+        webView.publisher(for: \.canGoForward)
+            .assign(to: &$canGoForward)
+
+        webView.publisher(for: \.isLoading)
+            .assign(to: &$isLoading)
+
+        // 初期ページをロード（DuckDuckGo）
+        loadURL("https://duckduckgo.com")
+    }
+
+    func loadURL(_ urlString: String) {
+        var urlToLoad = urlString.trimmingCharacters(in: .whitespaces)
+
+        // URLスキームがない場合は検索と判断
+        if !urlToLoad.hasPrefix("http://") && !urlToLoad.hasPrefix("https://") {
+            // スペースがあるか、ドメインっぽくない場合は検索
+            if urlToLoad.contains(" ") || !urlToLoad.contains(".") {
+                // DuckDuckGoで検索
+                urlToLoad = "https://duckduckgo.com/?q=\(urlToLoad.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            } else {
+                urlToLoad = "https://" + urlToLoad
+            }
+        }
+
+        guard let url = URL(string: urlToLoad) else { return }
+        let request = URLRequest(url: url)
+        webView.load(request)
+    }
+
+    func goBack() {
+        webView.goBack()
+    }
+
+    func goForward() {
+        webView.goForward()
+    }
+
+    func reload() {
+        webView.reload()
+    }
+}
+
+// MARK: - WKNavigationDelegate
+extension BrowserViewModel: WKNavigationDelegate {
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        currentURL = webView.url?.absoluteString ?? ""
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        print("Navigation failed: \(error.localizedDescription)")
+    }
+}
