@@ -13,6 +13,7 @@ struct BrowserView: View {
     @State private var urlText: String = ""
     @State private var showBookmarks = false
     @State private var showDownloads = false
+    @State private var showSettings = false
     @State private var isBookmarked = false
 
     var body: some View {
@@ -76,6 +77,12 @@ struct BrowserView: View {
                 }) {
                     Image(systemName: "arrow.down.circle")
                 }
+
+                Button(action: {
+                    showSettings = true
+                }) {
+                    Image(systemName: "gearshape")
+                }
             }
             .font(.title2)
             .padding()
@@ -91,6 +98,9 @@ struct BrowserView: View {
         }
         .sheet(isPresented: $showDownloads) {
             DownloadListView()
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
     }
 

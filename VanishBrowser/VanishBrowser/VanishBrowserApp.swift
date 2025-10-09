@@ -30,9 +30,6 @@ struct RootView: View {
         Group {
             if isAuthenticated || !AppSettingsService.shared.isAuthEnabled() {
                 ContentView()
-                    .onAppear {
-                        checkAutoDelete()
-                    }
                     .alert("データ削除警告", isPresented: $showWarning) {
                         Button("OK") {}
                     } message: {
@@ -49,15 +46,5 @@ struct RootView: View {
         }
     }
 
-    private func checkAutoDelete() {
-        AutoDeleteService.shared.checkAutoDelete(
-            onWarning: { days in
-                self.daysLeft = days
-                self.showWarning = true
-            },
-            onDelete: {
-                self.showDeleteAlert = true
-            }
-        )
-    }
+
 }

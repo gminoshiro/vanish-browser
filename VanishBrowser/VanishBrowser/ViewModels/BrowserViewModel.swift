@@ -10,6 +10,41 @@ import WebKit
 import Combine
 import UIKit
 
+
+enum SearchEngine: String, CaseIterable {
+    case google = "Google"
+    case duckDuckGo = "DuckDuckGo"
+    case bing = "Bing"
+    case yahoo = "Yahoo! JAPAN"
+
+    var homeURL: String {
+        switch self {
+        case .google:
+            return "https://www.google.com"
+        case .duckDuckGo:
+            return "https://duckduckgo.com"
+        case .bing:
+            return "https://www.bing.com"
+        case .yahoo:
+            return "https://www.yahoo.co.jp"
+        }
+    }
+
+    func searchURL(query: String) -> String {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        switch self {
+        case .google:
+            return "https://www.google.com/search?q=\(encoded)"
+        case .duckDuckGo:
+            return "https://duckduckgo.com/?q=\(encoded)"
+        case .bing:
+            return "https://www.bing.com/search?q=\(encoded)"
+        case .yahoo:
+            return "https://search.yahoo.co.jp/search?p=\(encoded)"
+        }
+    }
+}
+
 class BrowserViewModel: NSObject, ObservableObject {
     @Published var canGoBack = false
     @Published var canGoForward = false
@@ -289,8 +324,13 @@ class BrowserViewModel: NSObject, ObservableObject {
         webView.publisher(for: \.isLoading)
             .assign(to: &$isLoading)
 
-        // 初期ページをロード（DuckDuckGo）
-        loadURL("https://duckduckgo.com")
+        // 初期ページをロード（設定された検索エンジン）
+        let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "Google"
+        if let engine = SearchEngine(rawValue: searchEngineString) {
+            loadURL(engine.homeURL)
+        } else {
+            loadURL("https://www.google.com")
+        }
     }
 
     deinit {
@@ -306,8 +346,13 @@ class BrowserViewModel: NSObject, ObservableObject {
         if !urlToLoad.hasPrefix("http://") && !urlToLoad.hasPrefix("https://") {
             // スペースがあるか、ドメインっぽくない場合は検索
             if urlToLoad.contains(" ") || !urlToLoad.contains(".") {
-                // DuckDuckGoで検索
-                urlToLoad = "https://duckduckgo.com/?q=\(urlToLoad.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+                // 設定された検索エンジンで検索
+                let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "Google"
+                if let engine = SearchEngine(rawValue: searchEngineString) {
+                    urlToLoad = engine.searchURL(query: urlToLoad)
+                } else {
+                    urlToLoad = "https://www.google.com/search?q=\(urlToLoad.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+                }
             } else {
                 urlToLoad = "https://" + urlToLoad
             }
