@@ -102,10 +102,20 @@ extension BrowserViewModel: WKNavigationDelegate {
 
     // ダウンロード開始時
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        // ダウンロード可能なファイルタイプをチェック
+        // URLの拡張子でダウンロード判定
+        if let url = navigationAction.request.url,
+           shouldDownloadByExtension(url: url) {
+
+            let fileName = url.lastPathComponent
+            downloadFile(from: url, fileName: fileName)
+            decisionHandler(.cancel)
+            return
+        }
+
+        // Content-Typeでもチェック
         if let url = navigationAction.request.url,
            let mimeType = navigationAction.request.value(forHTTPHeaderField: "Content-Type"),
-           shouldDownload(mimeType: mimeType) {
+           shouldDownloadByMimeType(mimeType: mimeType) {
 
             let fileName = url.lastPathComponent
             downloadFile(from: url, fileName: fileName)
@@ -116,7 +126,13 @@ extension BrowserViewModel: WKNavigationDelegate {
         decisionHandler(.allow)
     }
 
-    private func shouldDownload(mimeType: String) -> Bool {
+    private func shouldDownloadByExtension(url: URL) -> Bool {
+        let downloadableExtensions = ["pdf", "zip", "mp4", "mov", "avi", "mkv", "mp3", "wav", "m4a", "jpg", "jpeg", "png", "gif", "webp"]
+        let ext = url.pathExtension.lowercased()
+        return downloadableExtensions.contains(ext)
+    }
+
+    private func shouldDownloadByMimeType(mimeType: String) -> Bool {
         let downloadableTypes = ["application/pdf", "application/zip", "image/", "video/", "audio/"]
         return downloadableTypes.contains { mimeType.hasPrefix($0) }
     }
