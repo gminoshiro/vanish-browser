@@ -31,58 +31,127 @@ class BrowserViewModel: NSObject, ObservableObject {
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
 
-        // JavaScriptでメディア要素を検出するスクリプト
+        // JavaScriptで動画にDLボタンを追加するスクリプト
         let mediaDetectionScript = WKUserScript(
             source: """
-            function detectMedia() {
-                const videos = document.querySelectorAll('video');
-                const audios = document.querySelectorAll('audio');
+            function addDownloadButton(video) {
+                // 既にボタンが追加されているかチェック
+                if (video.dataset.dlButtonAdded) return;
+                video.dataset.dlButtonAdded = 'true';
 
-                if (videos.length > 0) {
-                    const video = videos[0];
-                    let videoUrl = video.src || video.currentSrc;
+                console.log('🎬 Adding download button to video');
 
-                    // srcがない場合はsource要素を確認
-                    if (!videoUrl) {
-                        const sources = video.querySelectorAll('source');
-                        if (sources.length > 0) {
-                            videoUrl = sources[0].src;
-                        }
-                    }
-
-                    if (videoUrl && videoUrl.startsWith('http')) {
-                        window.webkit.messageHandlers.mediaDetected.postMessage({
-                            type: 'video',
-                            url: videoUrl,
-                            fileName: videoUrl.split('/').pop().split('?')[0] || 'video.mp4'
-                        });
-                    }
-                } else if (audios.length > 0) {
-                    const audio = audios[0];
-                    let audioUrl = audio.src || audio.currentSrc;
-
-                    if (!audioUrl) {
-                        const sources = audio.querySelectorAll('source');
-                        if (sources.length > 0) {
-                            audioUrl = sources[0].src;
-                        }
-                    }
-
-                    if (audioUrl && audioUrl.startsWith('http')) {
-                        window.webkit.messageHandlers.mediaDetected.postMessage({
-                            type: 'audio',
-                            url: audioUrl,
-                            fileName: audioUrl.split('/').pop().split('?')[0] || 'audio.mp3'
-                        });
+                // ビデオURLを取得
+                let videoUrl = video.src || video.currentSrc;
+                if (!videoUrl) {
+                    const sources = video.querySelectorAll('source');
+                    if (sources.length > 0) {
+                        videoUrl = sources[0].src;
                     }
                 }
+
+                if (!videoUrl || !videoUrl.startsWith('http')) {
+                    console.log('⚠️ No valid video URL found');
+                    return;
+                }
+
+                // DLボタンを作成
+                const dlButton = document.createElement('button');
+                dlButton.innerHTML = '⬇️ DL';
+                dlButton.style.cssText = `
+                    position: absolute;
+                    bottom: 60px;
+                    right: 16px;
+                    background: rgba(0, 122, 255, 0.95);
+                    color: white;
+                    border: none;
+                    border-radius: 20px;
+                    padding: 10px 20px;
+                    font-size: 16px;
+                    font-weight: bold;
+                    z-index: 999999;
+                    cursor: pointer;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+                    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                `;
+
+                // ボタンクリック時の処理
+                dlButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('📥 Download button clicked:', videoUrl);
+
+                    window.webkit.messageHandlers.videoDownload.postMessage({
+                        url: videoUrl,
+                        fileName: videoUrl.split('/').pop().split('?')[0] || 'video.mp4'
+                    });
+                });
+
+                // ビデオのコンテナを探す
+                let container = video.parentElement;
+                while (container && getComputedStyle(container).position === 'static') {
+                    container = container.parentElement;
+                }
+
+                if (!container) {
+                    // コンテナが見つからない場合はvideoをラップ
+                    const wrapper = document.createElement('div');
+                    wrapper.style.position = 'relative';
+                    wrapper.style.display = 'inline-block';
+                    video.parentNode.insertBefore(wrapper, video);
+                    wrapper.appendChild(video);
+                    container = wrapper;
+                }
+
+                // ボタンを追加
+                container.style.position = 'relative';
+                container.appendChild(dlButton);
+
+                console.log('✅ Download button added');
             }
 
-            // 複数回チェック
+            function detectMedia() {
+                const videos = document.querySelectorAll('video');
+
+                videos.forEach(function(video) {
+                    // ビデオが再生可能になったらボタンを追加
+                    if (video.readyState >= 2) {
+                        addDownloadButton(video);
+                    } else {
+                        video.addEventListener('loadeddata', function() {
+                            addDownloadButton(video);
+                        }, { once: true });
+                    }
+
+                    // フルスクリーン変更時にボタンを再配置
+                    video.addEventListener('webkitfullscreenchange', function() {
+                        if (document.webkitFullscreenElement === video) {
+                            console.log('📺 Fullscreen mode');
+                        }
+                    });
+                });
+            }
+
+            // MutationObserverで動的に追加される動画を監視
+            const observer = new MutationObserver(function(mutations) {
+                detectMedia();
+            });
+
+            // ページ読み込み後に監視開始
+            if (document.body) {
+                observer.observe(document.body, { childList: true, subtree: true });
+                detectMedia();
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    observer.observe(document.body, { childList: true, subtree: true });
+                    detectMedia();
+                });
+            }
+
+            // 定期的にチェック
             setTimeout(detectMedia, 500);
             setTimeout(detectMedia, 1500);
             setTimeout(detectMedia, 3000);
-            document.addEventListener('DOMContentLoaded', detectMedia);
             """,
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: false
@@ -206,7 +275,7 @@ class BrowserViewModel: NSObject, ObservableObject {
         super.init()
 
         // Message handlerを追加（WebView作成後に追加）
-        webView.configuration.userContentController.add(self, name: "mediaDetected")
+        webView.configuration.userContentController.add(self, name: "videoDownload")
         webView.configuration.userContentController.add(self, name: "imageLongPress")
         webView.navigationDelegate = self
 
@@ -226,7 +295,7 @@ class BrowserViewModel: NSObject, ObservableObject {
 
     deinit {
         // Message handlerを削除してメモリリークを防ぐ
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "mediaDetected")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDownload")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "imageLongPress")
     }
 
@@ -313,16 +382,15 @@ extension BrowserViewModel: WKNavigationDelegate {
 // MARK: - WKScriptMessageHandler
 extension BrowserViewModel: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "mediaDetected",
+        if message.name == "videoDownload",
            let dict = message.body as? [String: String],
            let urlString = dict["url"],
            let url = URL(string: urlString),
            let fileName = dict["fileName"] {
 
             DispatchQueue.main.async {
-                self.detectedMediaURL = url
-                self.detectedMediaFileName = fileName
-                print("メディア検出: \(fileName)")
+                print("🎬 動画ダウンロード開始: \(fileName)")
+                self.downloadFile(from: url, fileName: fileName)
             }
         } else if message.name == "imageLongPress",
                   let dict = message.body as? [String: String],

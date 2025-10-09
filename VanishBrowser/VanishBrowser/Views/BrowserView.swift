@@ -37,38 +37,8 @@ struct BrowserView: View {
             .padding()
 
             // WebView
-            ZStack(alignment: .topTrailing) {
-                WebView(viewModel: viewModel)
-
-                // メディア検出時のダウンロードボタン（常に右上に表示、フルスクリーン対応）
-                if viewModel.detectedMediaURL != nil {
-                    Button(action: {
-                        if let url = viewModel.detectedMediaURL,
-                           let fileName = viewModel.detectedMediaFileName {
-                            viewModel.downloadFile(from: url, fileName: fileName)
-                            // ダウンロード後もボタンを消さない（連続ダウンロード可能）
-                        }
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 20))
-                            Text("DL")
-                                .font(.system(size: 14, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(Color.blue.opacity(0.95))
-                        )
-                        .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
-                    }
-                    .padding(.top, 60)  // ステータスバー分下げる
-                    .padding(.trailing, 16)
-                    .zIndex(999)  // 最前面に表示
-                }
-            }
+            // WebView（DLボタンはJavaScriptで動画コントロールに追加）
+            WebView(viewModel: viewModel)
 
             // ツールバー
             HStack(spacing: 30) {
