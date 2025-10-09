@@ -88,21 +88,45 @@ struct FileViewerView: View {
     }
 
     private func loadFile() {
-        guard let filePath = file.filePath else { return }
+        guard let filePath = file.filePath else {
+            print("❌ FileViewerView: ファイルパスがありません")
+            return
+        }
+
         let url = URL(fileURLWithPath: filePath)
+        print("📂 FileViewerView: ファイルロード開始: \(filePath)")
+
+        // ファイルが存在するか確認
+        guard FileManager.default.fileExists(atPath: filePath) else {
+            print("❌ ファイルが存在しません: \(filePath)")
+            return
+        }
 
         // ファイルの拡張子で判定
-        let ext = (file.fileName ?? "").lowercased()
+        let ext = url.pathExtension.lowercased()
+        print("📝 拡張子: \(ext)")
 
-        if ext.hasSuffix(".jpg") || ext.hasSuffix(".jpeg") || ext.hasSuffix(".png") || ext.hasSuffix(".gif") {
+        if ["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext) {
             // 画像を読み込み
-            if let data = try? Data(contentsOf: url),
-               let loadedImage = UIImage(data: data) {
-                self.image = loadedImage
+            print("🖼️ 画像として読み込み中...")
+            do {
+                let data = try Data(contentsOf: url)
+                if let loadedImage = UIImage(data: data) {
+                    self.image = loadedImage
+                    print("✅ 画像読み込み成功: \(loadedImage.size)")
+                } else {
+                    print("❌ UIImage作成失敗")
+                }
+            } catch {
+                print("❌ 画像読み込みエラー: \(error)")
             }
-        } else if ext.hasSuffix(".mp4") || ext.hasSuffix(".mov") || ext.hasSuffix(".m4v") {
+        } else if ["mp4", "mov", "m4v", "avi", "mkv"].contains(ext) {
             // 動画プレイヤーを作成
+            print("🎬 動画として読み込み中...")
             self.player = AVPlayer(url: url)
+            print("✅ 動画プレイヤー作成成功")
+        } else {
+            print("⚠️ 対応していない拡張子: \(ext)")
         }
     }
 }

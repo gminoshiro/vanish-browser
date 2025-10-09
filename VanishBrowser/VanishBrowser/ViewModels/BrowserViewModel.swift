@@ -92,104 +92,107 @@ class BrowserViewModel: NSObject, ObservableObject {
         let imageTapScript = WKUserScript(
             source: """
             (function() {
-                // CSSでユーザー選択とコンテキストメニューを無効化
+                console.log('📱 Image tap script loaded');
+
+                // CSSでコンテキストメニューを無効化
                 var style = document.createElement('style');
                 style.innerHTML = `
-                    * {
+                    img, video {
                         -webkit-touch-callout: none !important;
                         -webkit-user-select: none !important;
                     }
-                    img, video {
-                        pointer-events: auto !important;
-                    }
                 `;
-                document.head.appendChild(style);
+                if (document.head) {
+                    document.head.appendChild(style);
+                } else {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        document.head.appendChild(style);
+                    });
+                }
 
-                // 複数の方法でコンテキストメニューをブロック
+                // コンテキストメニューをブロック
                 function blockContextMenu(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                    return false;
+                    if (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return false;
+                    }
                 }
 
                 document.addEventListener('contextmenu', blockContextMenu, true);
-                document.addEventListener('contextmenu', blockContextMenu, false);
-
-                // selectstartイベントもブロック
-                document.addEventListener('selectstart', function(e) {
-                    if (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO') {
-                        e.preventDefault();
-                        return false;
-                    }
-                }, true);
 
                 // 長押し検出
                 var longPressTimer = null;
-                var touchTarget = null;
-                var touchMoved = false;
+                var touchStartX = 0;
+                var touchStartY = 0;
+                var hasMoved = false;
 
-                document.addEventListener('touchstart', function(e) {
-                    touchTarget = e.target;
-                    touchMoved = false;
+                function handleTouchStart(e) {
+                    // 画像かどうかチェック
+                    var target = e.target;
+                    if (!target || target.tagName !== 'IMG') {
+                        return;
+                    }
 
-                    // 画像の場合は長押しタイマー開始
-                    if (e.target && e.target.tagName === 'IMG') {
-                        // デフォルト動作を即座にブロック
-                        e.preventDefault();
+                    console.log('🖼️ Image touchstart detected:', target.src);
 
-                        longPressTimer = setTimeout(function() {
-                            if (!touchMoved) {
-                                var img = e.target;
-                                var imageUrl = img.src || img.currentSrc;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    hasMoved = false;
 
-                                if (imageUrl && imageUrl.startsWith('http')) {
+                    // 長押しタイマー開始
+                    longPressTimer = setTimeout(function() {
+                        if (!hasMoved) {
+                            console.log('⏰ Long press triggered for:', target.src);
+                            var imageUrl = target.src || target.currentSrc;
+
+                            if (imageUrl) {
+                                try {
                                     window.webkit.messageHandlers.imageLongPress.postMessage({
                                         url: imageUrl,
                                         fileName: imageUrl.split('/').pop().split('?')[0] || 'image.jpg'
                                     });
+                                    console.log('✅ Message sent successfully');
+                                } catch (err) {
+                                    console.error('❌ Error sending message:', err);
                                 }
                             }
-                        }, 500);
-                    }
-                }, { capture: true, passive: false });
+                        }
+                    }, 600);
 
-                document.addEventListener('touchmove', function(e) {
-                    touchMoved = true;
-                    // スクロールしたらタイマーキャンセル
+                    // 画像のデフォルト動作をブロック
+                    e.preventDefault();
+                }
+
+                function handleTouchMove(e) {
+                    if (!longPressTimer) return;
+
+                    var moveX = Math.abs(e.touches[0].clientX - touchStartX);
+                    var moveY = Math.abs(e.touches[0].clientY - touchStartY);
+
+                    // 10px以上動いたらキャンセル
+                    if (moveX > 10 || moveY > 10) {
+                        hasMoved = true;
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                        console.log('↔️ Touch moved, cancelled');
+                    }
+                }
+
+                function handleTouchEnd(e) {
                     if (longPressTimer) {
                         clearTimeout(longPressTimer);
                         longPressTimer = null;
                     }
-                }, true);
+                }
 
-                document.addEventListener('touchend', function(e) {
-                    // タッチ終了でタイマーキャンセル
-                    if (longPressTimer) {
-                        clearTimeout(longPressTimer);
-                        longPressTimer = null;
-                    }
-                }, true);
+                // イベントリスナー登録
+                document.addEventListener('touchstart', handleTouchStart, true);
+                document.addEventListener('touchmove', handleTouchMove, true);
+                document.addEventListener('touchend', handleTouchEnd, true);
+                document.addEventListener('touchcancel', handleTouchEnd, true);
 
-                document.addEventListener('touchcancel', function(e) {
-                    // タッチキャンセルでタイマーキャンセル
-                    if (longPressTimer) {
-                        clearTimeout(longPressTimer);
-                        longPressTimer = null;
-                    }
-                }, true);
-
-                // 画像に直接イベントリスナーを追加（動的に追加される画像にも対応）
-                var observer = new MutationObserver(function(mutations) {
-                    document.querySelectorAll('img').forEach(function(img) {
-                        img.addEventListener('contextmenu', blockContextMenu, true);
-                    });
-                });
-
-                observer.observe(document.body || document.documentElement, {
-                    childList: true,
-                    subtree: true
-                });
+                console.log('✅ Image long press detection ready');
             })();
             """,
             injectionTime: .atDocumentStart,
