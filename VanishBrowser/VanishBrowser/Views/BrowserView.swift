@@ -12,6 +12,7 @@ struct BrowserView: View {
     @StateObject private var viewModel = BrowserViewModel()
     @State private var urlText: String = ""
     @State private var showBookmarks = false
+    @State private var showDownloads = false
     @State private var isBookmarked = false
 
     var body: some View {
@@ -70,7 +71,7 @@ struct BrowserView: View {
                 }
 
                 Button(action: {
-                    // ダウンロード一覧（後で実装）
+                    showDownloads = true
                 }) {
                     Image(systemName: "arrow.down.circle")
                 }
@@ -86,6 +87,9 @@ struct BrowserView: View {
             BookmarkListView(onSelectBookmark: { url in
                 viewModel.loadURL(url)
             })
+        }
+        .sheet(isPresented: $showDownloads) {
+            DownloadListView()
         }
     }
 

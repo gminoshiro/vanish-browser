@@ -14,6 +14,8 @@ class BrowserViewModel: NSObject, ObservableObject {
     @Published var canGoForward = false
     @Published var currentURL: String = ""
     @Published var isLoading = false
+    @Published var downloadProgress: Float = 0.0
+    @Published var isDownloading = false
 
     let webView: WKWebView
     private var cancellables = Set<AnyCancellable>()
@@ -71,6 +73,21 @@ class BrowserViewModel: NSObject, ObservableObject {
     func reload() {
         webView.reload()
     }
+
+    func downloadFile(from url: URL, fileName: String) {
+        isDownloading = true
+        downloadProgress = 0.0
+
+        DownloadService.shared.downloadFile(from: url, fileName: fileName) { [weak self] success in
+            DispatchQueue.main.async {
+                self?.isDownloading = false
+                self?.downloadProgress = 0.0
+                if success {
+                    print("ダウンロード成功: \(fileName)")
+                }
+            }
+        }
+    }
 }
 
 // MARK: - WKNavigationDelegate
@@ -81,5 +98,26 @@ extension BrowserViewModel: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         print("Navigation failed: \(error.localizedDescription)")
+    }
+
+    // ダウンロード開始時
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        // ダウンロード可能なファイルタイプをチェック
+        if let url = navigationAction.request.url,
+           let mimeType = navigationAction.request.value(forHTTPHeaderField: "Content-Type"),
+           shouldDownload(mimeType: mimeType) {
+
+            let fileName = url.lastPathComponent
+            downloadFile(from: url, fileName: fileName)
+            decisionHandler(.cancel)
+            return
+        }
+
+        decisionHandler(.allow)
+    }
+
+    private func shouldDownload(mimeType: String) -> Bool {
+        let downloadableTypes = ["application/pdf", "application/zip", "image/", "video/", "audio/"]
+        return downloadableTypes.contains { mimeType.hasPrefix($0) }
     }
 }
