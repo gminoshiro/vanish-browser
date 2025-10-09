@@ -42,29 +42,30 @@ struct BrowserView: View {
 
                 // メディア検出時のダウンロードボタン
                 if viewModel.detectedMediaURL != nil {
-                    VStack {
-                        Spacer()
-                        Button(action: {
-                            if let url = viewModel.detectedMediaURL,
-                               let fileName = viewModel.detectedMediaFileName {
-                                viewModel.downloadFile(from: url, fileName: fileName)
-                                viewModel.detectedMediaURL = nil
-                                viewModel.detectedMediaFileName = nil
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: "arrow.down.circle.fill")
-                                Text("動画をダウンロード")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(25)
-                            .shadow(radius: 5)
+                    Button(action: {
+                        if let url = viewModel.detectedMediaURL,
+                           let fileName = viewModel.detectedMediaFileName {
+                            viewModel.downloadFile(from: url, fileName: fileName)
+                            viewModel.detectedMediaURL = nil
+                            viewModel.detectedMediaFileName = nil
                         }
-                        .padding(.bottom, 80)
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 24))
+                            Text("ダウンロード")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(
+                            Capsule()
+                                .fill(Color.blue.opacity(0.9))
+                        )
+                        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                     }
+                    .padding(.bottom, 20)
                 }
             }
 
@@ -149,11 +150,81 @@ struct WebView: UIViewRepresentable {
     @ObservedObject var viewModel: BrowserViewModel
 
     func makeUIView(context: Context) -> WKWebView {
-        return viewModel.webView
+        let webView = viewModel.webView
+        webView.uiDelegate = context.coordinator
+        return webView
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {
         // 更新は不要
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(viewModel: viewModel)
+    }
+
+    class Coordinator: NSObject, WKUIDelegate {
+        let viewModel: BrowserViewModel
+
+        init(viewModel: BrowserViewModel) {
+            self.viewModel = viewModel
+        }
+
+        // コンテキストメニューのカスタマイズ
+        func webView(_ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo, completionHandler: @escaping (UIContextMenuConfiguration?) -> Void) {
+
+            guard let linkURL = elementInfo.linkURL else {
+                completionHandler(nil)
+                return
+            }
+
+            let config = UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+                var actions: [UIAction] = []
+
+                // リンクを開く
+                actions.append(UIAction(title: "リンクを開く", image: UIImage(systemName: "link")) { _ in
+                    webView.load(URLRequest(url: linkURL))
+                })
+
+                // 画像・動画・音声ファイルの場合はダウンロードオプションを追加
+                if self.isDownloadableURL(linkURL) {
+                    let fileType = self.getFileType(linkURL)
+                    let title = fileType == "画像" ? "画像をダウンロード" : fileType == "動画" ? "動画をダウンロード" : "ダウンロード"
+
+                    actions.append(UIAction(title: title, image: UIImage(systemName: "arrow.down.circle.fill")) { _ in
+                        let fileName = linkURL.lastPathComponent.isEmpty ? "download" : linkURL.lastPathComponent
+                        self.viewModel.downloadFile(from: linkURL, fileName: fileName)
+                    })
+                }
+
+                // リンクをコピー
+                actions.append(UIAction(title: "リンクをコピー", image: UIImage(systemName: "doc.on.doc")) { _ in
+                    UIPasteboard.general.string = linkURL.absoluteString
+                })
+
+                return UIMenu(title: "", children: actions)
+            }
+
+            completionHandler(config)
+        }
+
+        private func getFileType(_ url: URL) -> String {
+            let ext = url.pathExtension.lowercased()
+            if ["jpg", "jpeg", "png", "gif", "webp"].contains(ext) {
+                return "画像"
+            } else if ["mp4", "mov", "avi", "mkv", "webm"].contains(ext) {
+                return "動画"
+            } else if ["mp3", "wav", "m4a", "flac"].contains(ext) {
+                return "音声"
+            }
+            return "ファイル"
+        }
+
+        private func isDownloadableURL(_ url: URL) -> Bool {
+            let downloadableExtensions = ["mp4", "mov", "avi", "mkv", "webm", "mp3", "wav", "m4a", "flac", "pdf", "zip", "jpg", "jpeg", "png", "gif"]
+            let ext = url.pathExtension.lowercased()
+            return downloadableExtensions.contains(ext)
+        }
     }
 }
 
