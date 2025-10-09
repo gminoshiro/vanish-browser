@@ -12,7 +12,7 @@ struct DownloadListView: View {
     @Environment(\.dismiss) var dismiss
     @State private var downloads: [DownloadedFile] = []
     @State private var selectedFile: DownloadedFile?
-    @State private var showFileInfo = false
+    @State private var showFileViewer = false
 
     var body: some View {
         NavigationView {
@@ -31,23 +31,23 @@ struct DownloadListView: View {
                     // フォルダ構成表示
                     DownloadFolderSection(title: "動画", icon: "film", files: videoFiles, onSelect: { file in
                         selectedFile = file
-                        showFileInfo = true
+                        showFileViewer = true
                     })
                     DownloadFolderSection(title: "画像", icon: "photo", files: imageFiles, onSelect: { file in
                         selectedFile = file
-                        showFileInfo = true
+                        showFileViewer = true
                     })
                     DownloadFolderSection(title: "音楽", icon: "music.note", files: audioFiles, onSelect: { file in
                         selectedFile = file
-                        showFileInfo = true
+                        showFileViewer = true
                     })
                     DownloadFolderSection(title: "書類", icon: "doc.text", files: documentFiles, onSelect: { file in
                         selectedFile = file
-                        showFileInfo = true
+                        showFileViewer = true
                     })
                     DownloadFolderSection(title: "その他", icon: "doc", files: otherFiles, onSelect: { file in
                         selectedFile = file
-                        showFileInfo = true
+                        showFileViewer = true
                     })
                 }
             }
@@ -63,11 +63,9 @@ struct DownloadListView: View {
             .onAppear {
                 loadDownloads()
             }
-            .alert("ファイル情報", isPresented: $showFileInfo) {
-                Button("OK") {}
-            } message: {
+            .sheet(isPresented: $showFileViewer) {
                 if let file = selectedFile {
-                    Text("\(file.fileName ?? "無題")\n\nサイズ: \(DownloadService.shared.formatFileSize(file.fileSize))\n\n保存先: \(file.filePath ?? "")")
+                    FileViewerView(file: file)
                 }
             }
         }
