@@ -8,6 +8,7 @@
 import Foundation
 import WebKit
 import Combine
+import UIKit
 
 class BrowserViewModel: NSObject, ObservableObject {
     @Published var canGoBack = false
@@ -83,18 +84,60 @@ class BrowserViewModel: NSObject, ObservableObject {
             forMainFrameOnly: false
         )
 
-        // 画像タップを記録するスクリプト
+        // 画像長押し検出スクリプト（デフォルトメニューを無効化）
         let imageTapScript = WKUserScript(
             source: """
+            // デフォルトのコンテキストメニューを無効化
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }, true);
+
+            // 長押し検出
+            var longPressTimer = null;
+            var touchTarget = null;
+
             document.addEventListener('touchstart', function(e) {
+                touchTarget = e.target;
+
+                // 画像の場合は長押しタイマー開始
                 if (e.target && e.target.tagName === 'IMG') {
-                    window.__lastTappedImage = e.target;
+                    longPressTimer = setTimeout(function() {
+                        var img = e.target;
+                        var imageUrl = img.src || img.currentSrc;
+
+                        if (imageUrl && imageUrl.startsWith('http')) {
+                            window.webkit.messageHandlers.imageLongPress.postMessage({
+                                url: imageUrl,
+                                fileName: imageUrl.split('/').pop().split('?')[0] || 'image.jpg'
+                            });
+                        }
+                    }, 500);
                 }
             }, true);
 
-            document.addEventListener('contextmenu', function(e) {
-                if (e.target && e.target.tagName === 'IMG') {
-                    window.__lastTappedImage = e.target;
+            document.addEventListener('touchmove', function(e) {
+                // スクロールしたらタイマーキャンセル
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            }, true);
+
+            document.addEventListener('touchend', function(e) {
+                // タッチ終了でタイマーキャンセル
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            }, true);
+
+            document.addEventListener('touchcancel', function(e) {
+                // タッチキャンセルでタイマーキャンセル
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
                 }
             }, true);
             """,
@@ -108,8 +151,9 @@ class BrowserViewModel: NSObject, ObservableObject {
         self.webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
 
-        // Message handlerを先に追加（WebView作成後に追加）
+        // Message handlerを追加（WebView作成後に追加）
         webView.configuration.userContentController.add(self, name: "mediaDetected")
+        webView.configuration.userContentController.add(self, name: "imageLongPress")
         webView.navigationDelegate = self
 
         // WebViewの状態を監視
@@ -129,6 +173,7 @@ class BrowserViewModel: NSObject, ObservableObject {
     deinit {
         // Message handlerを削除してメモリリークを防ぐ
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "mediaDetected")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "imageLongPress")
     }
 
     func loadURL(_ urlString: String) {
@@ -225,6 +270,53 @@ extension BrowserViewModel: WKScriptMessageHandler {
                 self.detectedMediaFileName = fileName
                 print("メディア検出: \(fileName)")
             }
+        } else if message.name == "imageLongPress",
+                  let dict = message.body as? [String: String],
+                  let urlString = dict["url"],
+                  let url = URL(string: urlString),
+                  let fileName = dict["fileName"] {
+
+            DispatchQueue.main.async {
+                print("🖼️ 画像長押し検出: \(fileName)")
+                // ダウンロード確認アラートを表示
+                self.showImageDownloadAlert(url: url, fileName: fileName)
+            }
         }
+    }
+
+    private func showImageDownloadAlert(url: URL, fileName: String) {
+        // UIAlertControllerを使用してダウンロード確認
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootViewController = window.rootViewController else {
+            // アラート表示できない場合は直接ダウンロード
+            self.downloadFile(from: url, fileName: fileName)
+            return
+        }
+
+        let alert = UIAlertController(
+            title: "画像をダウンロード",
+            message: fileName,
+            preferredStyle: .actionSheet
+        )
+
+        alert.addAction(UIAlertAction(title: "ダウンロード", style: .default) { _ in
+            self.downloadFile(from: url, fileName: fileName)
+        })
+
+        alert.addAction(UIAlertAction(title: "URLをコピー", style: .default) { _ in
+            UIPasteboard.general.string = url.absoluteString
+        })
+
+        alert.addAction(UIAlertAction(title: "キャンセル", style: .cancel))
+
+        // iPadの場合はpopoverを設定
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = window
+            popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+
+        rootViewController.present(alert, animated: true)
     }
 }
