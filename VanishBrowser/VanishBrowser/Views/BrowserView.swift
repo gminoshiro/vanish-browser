@@ -37,35 +37,36 @@ struct BrowserView: View {
             .padding()
 
             // WebView
-            ZStack(alignment: .bottom) {
+            ZStack(alignment: .topTrailing) {
                 WebView(viewModel: viewModel)
 
-                // メディア検出時のダウンロードボタン
+                // メディア検出時のダウンロードボタン（常に右上に表示、フルスクリーン対応）
                 if viewModel.detectedMediaURL != nil {
                     Button(action: {
                         if let url = viewModel.detectedMediaURL,
                            let fileName = viewModel.detectedMediaFileName {
                             viewModel.downloadFile(from: url, fileName: fileName)
-                            viewModel.detectedMediaURL = nil
-                            viewModel.detectedMediaFileName = nil
+                            // ダウンロード後もボタンを消さない（連続ダウンロード可能）
                         }
                     }) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 24))
-                            Text("ダウンロード")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.system(size: 20))
+                            Text("DL")
+                                .font(.system(size: 14, weight: .bold))
                         }
                         .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
                         .background(
                             Capsule()
-                                .fill(Color.blue.opacity(0.9))
+                                .fill(Color.blue.opacity(0.95))
                         )
-                        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                        .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
                     }
-                    .padding(.bottom, 20)
+                    .padding(.top, 60)  // ステータスバー分下げる
+                    .padding(.trailing, 16)
+                    .zIndex(999)  // 最前面に表示
                 }
             }
 
@@ -152,6 +153,10 @@ struct WebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let webView = viewModel.webView
         webView.uiDelegate = context.coordinator
+
+        // コンテキストメニューを完全に無効化
+        webView.allowsLinkPreview = false
+
         return webView
     }
 

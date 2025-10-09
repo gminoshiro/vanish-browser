@@ -27,6 +27,10 @@ class BrowserViewModel: NSObject, ObservableObject {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent() // プライバシー保護：永続化しない
 
+        // すべてのメディア操作を無効化（長押しメニュー完全ブロック）
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+
         // JavaScriptでメディア要素を検出するスクリプト
         let mediaDetectionScript = WKUserScript(
             source: """
@@ -84,62 +88,109 @@ class BrowserViewModel: NSObject, ObservableObject {
             forMainFrameOnly: false
         )
 
-        // 画像長押し検出スクリプト（デフォルトメニューを無効化）
+        // コンテキストメニュー完全ブロックと画像長押し検出スクリプト
         let imageTapScript = WKUserScript(
             source: """
-            // デフォルトのコンテキストメニューを無効化
-            document.addEventListener('contextmenu', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }, true);
+            (function() {
+                // CSSでユーザー選択とコンテキストメニューを無効化
+                var style = document.createElement('style');
+                style.innerHTML = `
+                    * {
+                        -webkit-touch-callout: none !important;
+                        -webkit-user-select: none !important;
+                    }
+                    img, video {
+                        pointer-events: auto !important;
+                    }
+                `;
+                document.head.appendChild(style);
 
-            // 長押し検出
-            var longPressTimer = null;
-            var touchTarget = null;
-
-            document.addEventListener('touchstart', function(e) {
-                touchTarget = e.target;
-
-                // 画像の場合は長押しタイマー開始
-                if (e.target && e.target.tagName === 'IMG') {
-                    longPressTimer = setTimeout(function() {
-                        var img = e.target;
-                        var imageUrl = img.src || img.currentSrc;
-
-                        if (imageUrl && imageUrl.startsWith('http')) {
-                            window.webkit.messageHandlers.imageLongPress.postMessage({
-                                url: imageUrl,
-                                fileName: imageUrl.split('/').pop().split('?')[0] || 'image.jpg'
-                            });
-                        }
-                    }, 500);
+                // 複数の方法でコンテキストメニューをブロック
+                function blockContextMenu(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    return false;
                 }
-            }, true);
 
-            document.addEventListener('touchmove', function(e) {
-                // スクロールしたらタイマーキャンセル
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                }
-            }, true);
+                document.addEventListener('contextmenu', blockContextMenu, true);
+                document.addEventListener('contextmenu', blockContextMenu, false);
 
-            document.addEventListener('touchend', function(e) {
-                // タッチ終了でタイマーキャンセル
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                }
-            }, true);
+                // selectstartイベントもブロック
+                document.addEventListener('selectstart', function(e) {
+                    if (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO') {
+                        e.preventDefault();
+                        return false;
+                    }
+                }, true);
 
-            document.addEventListener('touchcancel', function(e) {
-                // タッチキャンセルでタイマーキャンセル
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                }
-            }, true);
+                // 長押し検出
+                var longPressTimer = null;
+                var touchTarget = null;
+                var touchMoved = false;
+
+                document.addEventListener('touchstart', function(e) {
+                    touchTarget = e.target;
+                    touchMoved = false;
+
+                    // 画像の場合は長押しタイマー開始
+                    if (e.target && e.target.tagName === 'IMG') {
+                        // デフォルト動作を即座にブロック
+                        e.preventDefault();
+
+                        longPressTimer = setTimeout(function() {
+                            if (!touchMoved) {
+                                var img = e.target;
+                                var imageUrl = img.src || img.currentSrc;
+
+                                if (imageUrl && imageUrl.startsWith('http')) {
+                                    window.webkit.messageHandlers.imageLongPress.postMessage({
+                                        url: imageUrl,
+                                        fileName: imageUrl.split('/').pop().split('?')[0] || 'image.jpg'
+                                    });
+                                }
+                            }
+                        }, 500);
+                    }
+                }, { capture: true, passive: false });
+
+                document.addEventListener('touchmove', function(e) {
+                    touchMoved = true;
+                    // スクロールしたらタイマーキャンセル
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                }, true);
+
+                document.addEventListener('touchend', function(e) {
+                    // タッチ終了でタイマーキャンセル
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                }, true);
+
+                document.addEventListener('touchcancel', function(e) {
+                    // タッチキャンセルでタイマーキャンセル
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                }, true);
+
+                // 画像に直接イベントリスナーを追加（動的に追加される画像にも対応）
+                var observer = new MutationObserver(function(mutations) {
+                    document.querySelectorAll('img').forEach(function(img) {
+                        img.addEventListener('contextmenu', blockContextMenu, true);
+                    });
+                });
+
+                observer.observe(document.body || document.documentElement, {
+                    childList: true,
+                    subtree: true
+                });
+            })();
             """,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false
