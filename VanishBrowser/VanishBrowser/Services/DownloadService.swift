@@ -31,84 +31,17 @@ class DownloadService {
     }
 
     // ファイルをダウンロードして保存（フォルダ自動振り分け）
-    func downloadFile(from url: URL, fileName: String, completion: @escaping (Bool) -> Void) {
-        print("📥 ダウンロード開始: \(fileName)")
-
-        let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, response, error in
-            guard let self = self else {
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-
-            if let error = error {
-                print("❌ ダウンロードエラー: \(error.localizedDescription)")
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-
-            guard let tempURL = tempURL else {
-                print("❌ 一時ファイルが見つかりません")
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-
-            // ファイルタイプに応じてフォルダを振り分け
-            let folder = self.detectFileType(fileName: fileName, mimeType: response?.mimeType)
-            let categoryDir = self.downloadsDirectory.appendingPathComponent(folder, isDirectory: true)
-
-            do {
-                // カテゴリフォルダが存在しない場合は作成
-                if !self.fileManager.fileExists(atPath: categoryDir.path) {
-                    try self.fileManager.createDirectory(at: categoryDir, withIntermediateDirectories: true)
-                    print("📁 フォルダ作成: \(folder)")
-                }
-
-                let destinationURL = categoryDir.appendingPathComponent(fileName)
-
-                // 既存ファイルがあれば削除
-                if self.fileManager.fileExists(atPath: destinationURL.path) {
-                    try self.fileManager.removeItem(at: destinationURL)
-                }
-
-                // ファイルをコピー
-                try self.fileManager.copyItem(at: tempURL, to: destinationURL)
-                print("✅ ファイル保存成功: \(destinationURL.path)")
-
-                // Core Dataに保存 - メインスレッドで実行
-                let fileSize = try self.fileManager.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64 ?? 0
-                let mimeType = response?.mimeType
-
-                DispatchQueue.main.async {
-                    // 少し遅延を入れてスレッド競合を回避
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self.saveDownloadedFile(
-                            fileName: fileName,
-                            filePath: destinationURL.path,
-                            fileSize: fileSize,
-                            mimeType: mimeType,
-                            folder: folder
-                        )
-                        completion(true)
-                    }
-                }
-            } catch {
-                print("❌ ファイル保存エラー: \(error.localizedDescription)")
-                DispatchQueue.main.async { completion(false) }
-            }
-        }
-        task.resume()
-    }
 
     // ファイルタイプを検出してフォルダ名を返す
     private func detectFileType(fileName: String, mimeType: String?) -> String {
         let ext = (fileName as NSString).pathExtension.lowercased()
 
         if ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].contains(ext) {
-            return "画像"
+            return "メディア"
         } else if ["mp4", "mov", "avi", "mkv", "webm", "flv"].contains(ext) {
-            return "動画"
+            return "メディア"
         } else if ["mp3", "wav", "m4a", "flac", "aac", "ogg"].contains(ext) {
-            return "音楽"
+            return "メディア"
         } else if ["pdf", "doc", "docx", "txt", "rtf", "pages"].contains(ext) {
             return "書類"
         } else if ["zip", "rar", "7z", "tar", "gz"].contains(ext) {
@@ -204,5 +137,86 @@ class DownloadService {
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
+    }
+    // ファイルをダウンロードして保存（プログレス付き）
+    func downloadFile(from url: URL, fileName: String, completion: @escaping (Bool) -> Void) {
+        print("📥 ダウンロード開始: \(fileName)")
+
+        let session = URLSession(configuration: .default, delegate: DownloadDelegate.shared, delegateQueue: nil)
+        let task = session.downloadTask(with: url) { [weak self] tempURL, response, error in
+            guard let self = self else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+
+            if let error = error {
+                print("❌ ダウンロードエラー: \(error.localizedDescription)")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+
+            guard let tempURL = tempURL else {
+                print("❌ 一時ファイルが見つかりません")
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+
+            // ファイルタイプに応じてフォルダを振り分け
+            let folder = self.detectFileType(fileName: fileName, mimeType: response?.mimeType)
+            let categoryDir = self.downloadsDirectory.appendingPathComponent(folder, isDirectory: true)
+
+            do {
+                // カテゴリフォルダが存在しない場合は作成
+                if !self.fileManager.fileExists(atPath: categoryDir.path) {
+                    try self.fileManager.createDirectory(at: categoryDir, withIntermediateDirectories: true)
+                    print("📁 フォルダ作成: \(folder)")
+                }
+
+                let destinationURL = categoryDir.appendingPathComponent(fileName)
+
+                // 既存ファイルがあれば削除
+                if self.fileManager.fileExists(atPath: destinationURL.path) {
+                    try self.fileManager.removeItem(at: destinationURL)
+                }
+
+                // ファイルをコピー
+                try self.fileManager.copyItem(at: tempURL, to: destinationURL)
+                print("✅ ファイル保存成功: \(destinationURL.path)")
+
+                // Core Dataに保存
+                let fileSize = try self.fileManager.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64 ?? 0
+                let mimeType = response?.mimeType
+
+                DispatchQueue.main.async {
+                    self.saveDownloadedFile(
+                        fileName: fileName,
+                        filePath: destinationURL.path,
+                        fileSize: fileSize,
+                        mimeType: mimeType,
+                        folder: folder
+                    )
+                    completion(true)
+                }
+            } catch {
+                print("❌ ファイル保存エラー: \(error.localizedDescription)")
+                DispatchQueue.main.async { completion(false) }
+            }
+        }
+        task.resume()
+    }
+}
+
+class DownloadDelegate: NSObject, URLSessionDownloadDelegate {
+    static let shared = DownloadDelegate()
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        let progress = Float(totalBytesWritten) / Float(totalBytesExpectedToWrite)
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: NSNotification.Name("DownloadProgress"), object: progress)
+        }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        // 完了処理はdownloadTaskのcompletionで行う
     }
 }

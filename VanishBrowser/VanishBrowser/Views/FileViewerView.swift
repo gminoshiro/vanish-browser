@@ -7,12 +7,14 @@
 
 import SwiftUI
 import AVKit
+import QuickLook
 
 struct FileViewerView: View {
     let file: DownloadedFile
     @Environment(\.dismiss) var dismiss
     @State private var player: AVPlayer?
     @State private var image: UIImage?
+    @State private var showQuickLook = false
 
     var body: some View {
         NavigationView {
@@ -36,24 +38,8 @@ struct FileViewerView: View {
                             player.pause()
                         }
                 } else {
-                    // 対応していないファイル
-                    VStack(spacing: 16) {
-                        Image(systemName: "doc")
-                            .font(.system(size: 60))
-                            .foregroundColor(.white)
-
-                        Text(file.fileName ?? "無題")
-                            .font(.headline)
-                            .foregroundColor(.white)
-
-                        Text("このファイル形式はプレビューできません")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-
-                        Text("サイズ: \(DownloadService.shared.formatFileSize(file.fileSize))")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
+                    // QuickLookで表示
+                    QuickLookView(url: fileURL)
                 }
             }
             .navigationTitle(file.fileName ?? "無題")
@@ -67,11 +53,9 @@ struct FileViewerView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if image != nil || player != nil {
-                        ShareLink(item: fileURL) {
-                            Image(systemName: "square.and.arrow.up")
-                                .foregroundColor(.white)
-                        }
+                    ShareLink(item: fileURL) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundColor(.white)
                     }
                 }
             }
@@ -96,13 +80,11 @@ struct FileViewerView: View {
         let url = URL(fileURLWithPath: filePath)
         print("📂 FileViewerView: ファイルロード開始: \(filePath)")
 
-        // ファイルが存在するか確認
         guard FileManager.default.fileExists(atPath: filePath) else {
             print("❌ ファイルが存在しません: \(filePath)")
             return
         }
 
-        // ファイルの拡張子で判定
         let ext = url.pathExtension.lowercased()
         print("📝 拡張子: \(ext)")
 
@@ -126,7 +108,40 @@ struct FileViewerView: View {
             self.player = AVPlayer(url: url)
             print("✅ 動画プレイヤー作成成功")
         } else {
-            print("⚠️ 対応していない拡張子: \(ext)")
+            // その他のファイルはQuickLookで表示
+            print("📄 QuickLookで表示: \(ext)")
+        }
+    }
+}
+
+struct QuickLookView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(url: url)
+    }
+
+    class Coordinator: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+
+        init(url: URL) {
+            self.url = url
+        }
+
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+            return 1
+        }
+
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+            return url as QLPreviewItem
         }
     }
 }

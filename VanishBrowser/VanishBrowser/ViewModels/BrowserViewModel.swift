@@ -323,6 +323,12 @@ class BrowserViewModel: NSObject, ObservableObject {
 
         webView.publisher(for: \.isLoading)
             .assign(to: &$isLoading)
+        // ダウンロードプログレス通知を受信
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("DownloadProgress"), object: nil, queue: .main) { [weak self] notification in
+            if let progress = notification.object as? Float {
+                self?.downloadProgress = progress
+            }
+        }
 
         // 初期ページをロード（設定された検索エンジン）
         let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "Google"

@@ -39,6 +39,16 @@ struct BrowserView: View {
 
             // WebView
             // WebView（DLボタンはJavaScriptで動画コントロールに追加）
+
+            // ダウンロードプログレス表示
+            if viewModel.isDownloading {
+                DownloadProgressView(
+                    fileName: viewModel.detectedMediaFileName ?? "ダウンロード中...",
+                    progress: Double(viewModel.downloadProgress)
+                )
+                .transition(.move(edge: .bottom))
+                .padding(.bottom, 80)
+            }
             WebView(viewModel: viewModel)
 
             // ツールバー

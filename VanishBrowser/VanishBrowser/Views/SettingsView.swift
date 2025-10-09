@@ -11,6 +11,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var autoDeleteService = AutoDeleteService.shared
     @AppStorage("searchEngine") private var searchEngine: String = SearchEngine.google.rawValue
+    @AppStorage("useBiometric") private var useBiometric: Bool = true
+    @AppStorage("authPassword") private var authPassword: String = ""
     @State private var showDeleteConfirmation = false
 
     var selectedSearchEngine: SearchEngine {
@@ -20,6 +22,21 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
+
+                // 認証設定
+                Section(header: Text("認証"), footer: Text("生体認証が利用できない場合、パスワード認証にフォールバックします。")) {
+                    Toggle("生体認証を使用", isOn: $useBiometric)
+
+                    SecureField("パスワード（任意）", text: $authPassword)
+                        .textFieldStyle(.roundedBorder)
+
+                    if !authPassword.isEmpty {
+                        Button("パスワードをクリア") {
+                            authPassword = ""
+                        }
+                        .foregroundColor(.red)
+                    }
+                }
                 // 検索エンジン設定
                 Section(header: Text("検索エンジン")) {
                     Picker("検索エンジン", selection: $searchEngine) {

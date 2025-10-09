@@ -9,8 +9,10 @@ import SwiftUI
 
 struct AuthenticationView: View {
     @Binding var isAuthenticated: Bool
+    @State private var password = ""
     @State private var authError: String?
-    @State private var showError = false
+    @AppStorage("authPassword") private var savedPassword: String = ""
+    @AppStorage("useBiometric") private var useBiometric: Bool = true
 
     var body: some View {
         VStack(spacing: 30) {
@@ -22,16 +24,24 @@ struct AuthenticationView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("\(BiometricAuthService.shared.biometricType())で認証してください")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            if useBiometric && BiometricAuthService.shared.canUseBiometrics() {
+                Text("\(BiometricAuthService.shared.biometricType())で認証")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("パスワードを入力")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
 
-            Button(action: {
-                authenticate()
-            }) {
-                HStack {
-                    Image(systemName: biometricIcon())
-                    Text("認証する")
+                SecureField("パスワード", text: $password)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 40)
+                    .onSubmit {
+                        authenticateWithPassword()
+                    }
+
+                Button("認証する") {
+                    authenticateWithPassword()
                 }
                 .font(.headline)
                 .foregroundColor(.white)
@@ -40,7 +50,6 @@ struct AuthenticationView: View {
                 .background(Color.blue)
                 .cornerRadius(10)
             }
-            .padding(.top, 20)
 
             if let error = authError {
                 Text(error)
@@ -52,7 +61,9 @@ struct AuthenticationView: View {
         }
         .padding()
         .onAppear {
-            authenticate()
+            if useBiometric && BiometricAuthService.shared.canUseBiometrics() {
+                authenticate()
+            }
         }
     }
 
@@ -68,20 +79,19 @@ struct AuthenticationView: View {
                 } else {
                     authError = "認証に失敗しました"
                 }
-                showError = true
             }
         }
     }
 
-    private func biometricIcon() -> String {
-        let type = BiometricAuthService.shared.biometricType()
-        switch type {
-        case "Face ID":
-            return "faceid"
-        case "Touch ID":
-            return "touchid"
-        default:
-            return "lock.shield"
+    private func authenticateWithPassword() {
+        if savedPassword.isEmpty {
+            // パスワード未設定なら何でもOK
+            isAuthenticated = true
+        } else if password == savedPassword {
+            isAuthenticated = true
+        } else {
+            authError = "パスワードが違います"
+            password = ""
         }
     }
 }
