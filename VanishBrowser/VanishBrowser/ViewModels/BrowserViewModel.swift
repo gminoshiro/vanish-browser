@@ -108,8 +108,9 @@ class BrowserViewModel: NSObject, ObservableObject {
         self.webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
 
+        // Message handlerを先に追加（WebView作成後に追加）
+        webView.configuration.userContentController.add(self, name: "mediaDetected")
         webView.navigationDelegate = self
-        configuration.userContentController.add(self, name: "mediaDetected")
 
         // WebViewの状態を監視
         webView.publisher(for: \.canGoBack)
@@ -123,6 +124,11 @@ class BrowserViewModel: NSObject, ObservableObject {
 
         // 初期ページをロード（DuckDuckGo）
         loadURL("https://duckduckgo.com")
+    }
+
+    deinit {
+        // Message handlerを削除してメモリリークを防ぐ
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "mediaDetected")
     }
 
     func loadURL(_ urlString: String) {
