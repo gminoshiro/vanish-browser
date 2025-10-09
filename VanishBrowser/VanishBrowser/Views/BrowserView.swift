@@ -11,6 +11,8 @@ import WebKit
 struct BrowserView: View {
     @StateObject private var viewModel = BrowserViewModel()
     @State private var urlText: String = ""
+    @State private var showBookmarks = false
+    @State private var isBookmarked = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,9 +57,16 @@ struct BrowserView: View {
                 Spacer()
 
                 Button(action: {
-                    // ブックマーク追加（後で実装）
+                    toggleBookmark()
                 }) {
-                    Image(systemName: "star")
+                    Image(systemName: isBookmarked ? "star.fill" : "star")
+                        .foregroundColor(isBookmarked ? .yellow : .primary)
+                }
+
+                Button(action: {
+                    showBookmarks = true
+                }) {
+                    Image(systemName: "book")
                 }
 
                 Button(action: {
@@ -69,6 +78,36 @@ struct BrowserView: View {
             .font(.title2)
             .padding()
         }
+        .onChange(of: viewModel.currentURL) { _, newURL in
+            urlText = newURL
+            updateBookmarkStatus()
+        }
+        .sheet(isPresented: $showBookmarks) {
+            BookmarkListView(onSelectBookmark: { url in
+                viewModel.loadURL(url)
+            })
+        }
+    }
+
+    private func toggleBookmark() {
+        guard let url = viewModel.webView.url?.absoluteString,
+              let title = viewModel.webView.title else { return }
+
+        if isBookmarked {
+            // 削除処理は一覧から行う
+            showBookmarks = true
+        } else {
+            BookmarkService.shared.addBookmark(title: title, url: url)
+            isBookmarked = true
+        }
+    }
+
+    private func updateBookmarkStatus() {
+        guard let url = viewModel.webView.url?.absoluteString else {
+            isBookmarked = false
+            return
+        }
+        isBookmarked = BookmarkService.shared.isBookmarked(url: url)
     }
 }
 
