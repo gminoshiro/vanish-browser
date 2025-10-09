@@ -1,9 +1,35 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="1" systemVersion="11A491" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="false" userDefinedModelVersionIdentifier="">
-    <entity name="Item" representedClassName="Item" syncable="YES" codeGenerationType="class">
-        <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+    <entity name="DownloadedFile" representedClassName="DownloadedFile" syncable="YES" codeGenerationType="class">
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="fileName" attributeType="String"/>
+        <attribute name="filePath" attributeType="String"/>
+        <attribute name="fileSize" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="mimeType" optional="YES" attributeType="String"/>
+        <attribute name="downloadedAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="isEncrypted" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="thumbnailPath" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="Bookmark" representedClassName="Bookmark" syncable="YES" codeGenerationType="class">
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="title" attributeType="String"/>
+        <attribute name="url" attributeType="String"/>
+        <attribute name="faviconPath" optional="YES" attributeType="String"/>
+        <attribute name="folder" attributeType="String" defaultValueString="未分類"/>
+        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
+    </entity>
+    <entity name="AppSettings" representedClassName="AppSettings" syncable="YES" codeGenerationType="class">
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="autoDeleteDays" attributeType="Integer 32" defaultValueString="90" usesScalarValueType="YES"/>
+        <attribute name="deleteWarningDays" attributeType="Integer 32" defaultValueString="7" usesScalarValueType="YES"/>
+        <attribute name="lastOpenedAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="isAuthEnabled" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="isDarkModeEnabled" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="defaultSearchEngine" attributeType="String" defaultValueString="DuckDuckGo"/>
     </entity>
     <elements>
-        <element name="Item" positionX="-63" positionY="-18" width="128" height="44"/>
+        <element name="DownloadedFile" positionX="-63" positionY="-18" width="128" height="149"/>
+        <element name="Bookmark" positionX="-54" positionY="9" width="128" height="119"/>
+        <element name="AppSettings" positionX="-36" positionY="27" width="128" height="134"/>
     </elements>
 </model>
