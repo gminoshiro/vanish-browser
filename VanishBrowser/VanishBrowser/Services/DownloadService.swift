@@ -74,19 +74,22 @@ class DownloadService {
                 try self.fileManager.copyItem(at: tempURL, to: destinationURL)
                 print("✅ ファイル保存成功: \(destinationURL.path)")
 
-                // Core Dataに保存
+                // Core Dataに保存 - メインスレッドで実行
                 let fileSize = try self.fileManager.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64 ?? 0
                 let mimeType = response?.mimeType
 
                 DispatchQueue.main.async {
-                    self.saveDownloadedFile(
-                        fileName: fileName,
-                        filePath: destinationURL.path,
-                        fileSize: fileSize,
-                        mimeType: mimeType,
-                        folder: folder
-                    )
-                    completion(true)
+                    // 少し遅延を入れてスレッド競合を回避
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self.saveDownloadedFile(
+                            fileName: fileName,
+                            filePath: destinationURL.path,
+                            fileSize: fileSize,
+                            mimeType: mimeType,
+                            folder: folder
+                        )
+                        completion(true)
+                    }
                 }
             } catch {
                 print("❌ ファイル保存エラー: \(error.localizedDescription)")
@@ -117,32 +120,50 @@ class DownloadService {
 
     // Core Dataに保存
     private func saveDownloadedFile(fileName: String, filePath: String, fileSize: Int64, mimeType: String?, folder: String) {
-        // メインスレッドで実行されていることを確認
+        // メインスレッドで実行されていることを確認（デバッグのみ）
+        #if DEBUG
         assert(Thread.isMainThread, "saveDownloadedFile must be called on main thread")
+        #endif
 
-        let downloadedFile = DownloadedFile(context: viewContext)
-        downloadedFile.id = UUID()
-        downloadedFile.fileName = fileName
-        downloadedFile.filePath = filePath
-        downloadedFile.fileSize = fileSize
-        downloadedFile.mimeType = mimeType
-        downloadedFile.downloadedAt = Date()
-        downloadedFile.isEncrypted = false // 暗号化は後で実装
+        // メインスレッドでない場合は強制的にメインスレッドで実行
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async {
+                self.saveDownloadedFile(
+                    fileName: fileName,
+                    filePath: filePath,
+                    fileSize: fileSize,
+                    mimeType: mimeType,
+                    folder: folder
+                )
+            }
+            return
+        }
 
         do {
-            // Core Dataに変更があるか確認
+            let downloadedFile = DownloadedFile(context: viewContext)
+            downloadedFile.id = UUID()
+            downloadedFile.fileName = fileName
+            downloadedFile.filePath = filePath
+            downloadedFile.fileSize = fileSize
+            downloadedFile.mimeType = mimeType
+            downloadedFile.downloadedAt = Date()
+            downloadedFile.isEncrypted = false // 暗号化は後で実装
+
+            // Core Dataに変更があるか確認して保存
             if viewContext.hasChanges {
                 try viewContext.save()
                 print("💾 Core Data保存成功: \(fileName) → \(folder)")
             } else {
                 print("⚠️ Core Dataに変更がありません")
             }
-        } catch {
+        } catch let error as NSError {
             print("❌ Core Data保存エラー: \(error.localizedDescription)")
             print("❌ 詳細: \(error)")
+            print("❌ UserInfo: \(error.userInfo)")
 
-            // ロールバックして再試行
+            // ロールバックして状態をリセット
             viewContext.rollback()
+            print("⚙️ Core Dataロールバック実行")
         }
     }
 
