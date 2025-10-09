@@ -173,7 +173,39 @@ struct WebView: UIViewRepresentable {
         // コンテキストメニューのカスタマイズ
         func webView(_ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo, completionHandler: @escaping (UIContextMenuConfiguration?) -> Void) {
 
-            guard let linkURL = elementInfo.linkURL else {
+            // JavaScriptで画像URLを同期的に取得（遅延なし）
+            let jsCode = """
+            (function() {
+                var elements = document.elementsFromPoint(\(elementInfo.location.x), \(elementInfo.location.y));
+                for (var i = 0; i < elements.length; i++) {
+                    if (elements[i].tagName === 'IMG') {
+                        return { type: 'image', url: elements[i].src || elements[i].currentSrc };
+                    }
+                }
+                return null;
+            })();
+            """
+
+            var detectedImageURL: URL?
+
+            // 同期的に画像URLを取得
+            let semaphore = DispatchSemaphore(value: 0)
+            webView.evaluateJavaScript(jsCode) { result, error in
+                if let dict = result as? [String: String],
+                   dict["type"] == "image",
+                   let urlString = dict["url"],
+                   let url = URL(string: urlString) {
+                    detectedImageURL = url
+                }
+                semaphore.signal()
+            }
+            _ = semaphore.wait(timeout: .now() + 0.1)
+
+            // リンクまたは画像がある場合のみメニューを表示
+            let linkURL = elementInfo.linkURL
+            let imageURL = detectedImageURL
+
+            guard linkURL != nil || imageURL != nil else {
                 completionHandler(nil)
                 return
             }
@@ -181,26 +213,41 @@ struct WebView: UIViewRepresentable {
             let config = UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
                 var actions: [UIAction] = []
 
-                // リンクを開く
-                actions.append(UIAction(title: "リンクを開く", image: UIImage(systemName: "link")) { _ in
-                    webView.load(URLRequest(url: linkURL))
-                })
+                // 画像のダウンロード（リンクなしの直接画像）
+                if let imageURL = imageURL, linkURL == nil {
+                    actions.append(UIAction(title: "画像をダウンロード", image: UIImage(systemName: "arrow.down.circle.fill")) { _ in
+                        let fileName = imageURL.lastPathComponent.isEmpty ? "image.jpg" : imageURL.lastPathComponent
+                        self.viewModel.downloadFile(from: imageURL, fileName: fileName)
+                    })
 
-                // 画像・動画・音声ファイルの場合はダウンロードオプションを追加
-                if self.isDownloadableURL(linkURL) {
-                    let fileType = self.getFileType(linkURL)
-                    let title = fileType == "画像" ? "画像をダウンロード" : fileType == "動画" ? "動画をダウンロード" : "ダウンロード"
-
-                    actions.append(UIAction(title: title, image: UIImage(systemName: "arrow.down.circle.fill")) { _ in
-                        let fileName = linkURL.lastPathComponent.isEmpty ? "download" : linkURL.lastPathComponent
-                        self.viewModel.downloadFile(from: linkURL, fileName: fileName)
+                    actions.append(UIAction(title: "画像URLをコピー", image: UIImage(systemName: "doc.on.doc")) { _ in
+                        UIPasteboard.general.string = imageURL.absoluteString
                     })
                 }
 
-                // リンクをコピー
-                actions.append(UIAction(title: "リンクをコピー", image: UIImage(systemName: "doc.on.doc")) { _ in
-                    UIPasteboard.general.string = linkURL.absoluteString
-                })
+                // リンクがある場合
+                if let linkURL = linkURL {
+                    // リンクを開く
+                    actions.append(UIAction(title: "リンクを開く", image: UIImage(systemName: "link")) { _ in
+                        webView.load(URLRequest(url: linkURL))
+                    })
+
+                    // ダウンロード可能なファイルの場合
+                    if self.isDownloadableURL(linkURL) {
+                        let fileType = self.getFileType(linkURL)
+                        let title = fileType == "画像" ? "画像をダウンロード" : fileType == "動画" ? "動画をダウンロード" : "ダウンロード"
+
+                        actions.append(UIAction(title: title, image: UIImage(systemName: "arrow.down.circle.fill")) { _ in
+                            let fileName = linkURL.lastPathComponent.isEmpty ? "download" : linkURL.lastPathComponent
+                            self.viewModel.downloadFile(from: linkURL, fileName: fileName)
+                        })
+                    }
+
+                    // リンクをコピー
+                    actions.append(UIAction(title: "リンクをコピー", image: UIImage(systemName: "doc.on.doc")) { _ in
+                        UIPasteboard.general.string = linkURL.absoluteString
+                    })
+                }
 
                 return UIMenu(title: "", children: actions)
             }

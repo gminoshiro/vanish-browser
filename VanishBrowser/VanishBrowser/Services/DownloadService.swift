@@ -117,6 +117,9 @@ class DownloadService {
 
     // Core Dataに保存
     private func saveDownloadedFile(fileName: String, filePath: String, fileSize: Int64, mimeType: String?, folder: String) {
+        // メインスレッドで実行されていることを確認
+        assert(Thread.isMainThread, "saveDownloadedFile must be called on main thread")
+
         let downloadedFile = DownloadedFile(context: viewContext)
         downloadedFile.id = UUID()
         downloadedFile.fileName = fileName
@@ -127,10 +130,19 @@ class DownloadService {
         downloadedFile.isEncrypted = false // 暗号化は後で実装
 
         do {
-            try viewContext.save()
-            print("💾 Core Data保存成功: \(fileName) → \(folder)")
+            // Core Dataに変更があるか確認
+            if viewContext.hasChanges {
+                try viewContext.save()
+                print("💾 Core Data保存成功: \(fileName) → \(folder)")
+            } else {
+                print("⚠️ Core Dataに変更がありません")
+            }
         } catch {
-            print("❌ Core Data保存エラー: \(error)")
+            print("❌ Core Data保存エラー: \(error.localizedDescription)")
+            print("❌ 詳細: \(error)")
+
+            // ロールバックして再試行
+            viewContext.rollback()
         }
     }
 
