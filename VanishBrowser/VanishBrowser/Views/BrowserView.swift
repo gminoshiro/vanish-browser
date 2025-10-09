@@ -37,7 +37,36 @@ struct BrowserView: View {
             .padding()
 
             // WebView
-            WebView(viewModel: viewModel)
+            ZStack(alignment: .bottom) {
+                WebView(viewModel: viewModel)
+
+                // メディア検出時のダウンロードボタン
+                if viewModel.detectedMediaURL != nil {
+                    VStack {
+                        Spacer()
+                        Button(action: {
+                            if let url = viewModel.detectedMediaURL,
+                               let fileName = viewModel.detectedMediaFileName {
+                                viewModel.downloadFile(from: url, fileName: fileName)
+                                viewModel.detectedMediaURL = nil
+                                viewModel.detectedMediaFileName = nil
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "arrow.down.circle.fill")
+                                Text("動画をダウンロード")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.blue)
+                            .cornerRadius(25)
+                            .shadow(radius: 5)
+                        }
+                        .padding(.bottom, 80)
+                    }
+                }
+            }
 
             // ツールバー
             HStack(spacing: 30) {

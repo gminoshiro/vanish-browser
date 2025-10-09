@@ -27,42 +27,12 @@ struct DownloadListView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .listRowBackground(Color.clear)
                 } else {
-                    ForEach(downloads, id: \.id) { download in
-                        Button(action: {
-                            openFile(download)
-                        }) {
-                            HStack {
-                                // ファイルアイコン
-                                Image(systemName: fileIcon(for: download.mimeType))
-                                    .font(.title2)
-                                    .foregroundColor(.blue)
-                                    .frame(width: 40)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(download.fileName ?? "無題")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-
-                                    HStack {
-                                        Text(DownloadService.shared.formatFileSize(download.fileSize))
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-
-                                        if let date = download.downloadedAt {
-                                            Text("・")
-                                                .foregroundColor(.secondary)
-                                            Text(date, style: .date)
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
-                                }
-
-                                Spacer()
-                            }
-                        }
-                    }
-                    .onDelete(perform: deleteFiles)
+                    // フォルダ構成表示
+                    DownloadFolderSection(title: "動画", icon: "film", files: videoFiles, selectedFileURL: $selectedFileURL)
+                    DownloadFolderSection(title: "画像", icon: "photo", files: imageFiles, selectedFileURL: $selectedFileURL)
+                    DownloadFolderSection(title: "音楽", icon: "music.note", files: audioFiles, selectedFileURL: $selectedFileURL)
+                    DownloadFolderSection(title: "書類", icon: "doc.text", files: documentFiles, selectedFileURL: $selectedFileURL)
+                    DownloadFolderSection(title: "その他", icon: "doc", files: otherFiles, selectedFileURL: $selectedFileURL)
                 }
             }
             .navigationTitle("ダウンロード")
@@ -73,11 +43,6 @@ struct DownloadListView: View {
                         dismiss()
                     }
                 }
-                if !downloads.isEmpty {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        EditButton()
-                    }
-                }
             }
             .onAppear {
                 loadDownloads()
@@ -86,37 +51,128 @@ struct DownloadListView: View {
         }
     }
 
+    private var videoFiles: [DownloadedFile] {
+        downloads.filter { isVideoFile($0.mimeType) || hasVideoExtension($0.fileName) }
+    }
+
+    private var imageFiles: [DownloadedFile] {
+        downloads.filter { isImageFile($0.mimeType) || hasImageExtension($0.fileName) }
+    }
+
+    private var audioFiles: [DownloadedFile] {
+        downloads.filter { isAudioFile($0.mimeType) || hasAudioExtension($0.fileName) }
+    }
+
+    private var documentFiles: [DownloadedFile] {
+        downloads.filter { isDocumentFile($0.mimeType) || hasDocumentExtension($0.fileName) }
+    }
+
+    private var otherFiles: [DownloadedFile] {
+        downloads.filter { file in
+            !videoFiles.contains(where: { $0.id == file.id }) &&
+            !imageFiles.contains(where: { $0.id == file.id }) &&
+            !audioFiles.contains(where: { $0.id == file.id }) &&
+            !documentFiles.contains(where: { $0.id == file.id })
+        }
+    }
+
     private func loadDownloads() {
         downloads = DownloadService.shared.fetchDownloadedFiles()
     }
 
-    private func deleteFiles(at offsets: IndexSet) {
-        for index in offsets {
-            DownloadService.shared.deleteFile(downloads[index])
-        }
-        loadDownloads()
+    private func isVideoFile(_ mimeType: String?) -> Bool {
+        guard let mimeType = mimeType else { return false }
+        return mimeType.hasPrefix("video/")
     }
 
-    private func openFile(_ download: DownloadedFile) {
-        guard let filePath = download.filePath else { return }
-        selectedFileURL = URL(fileURLWithPath: filePath)
+    private func isImageFile(_ mimeType: String?) -> Bool {
+        guard let mimeType = mimeType else { return false }
+        return mimeType.hasPrefix("image/")
     }
 
-    private func fileIcon(for mimeType: String?) -> String {
-        guard let mimeType = mimeType else { return "doc" }
+    private func isAudioFile(_ mimeType: String?) -> Bool {
+        guard let mimeType = mimeType else { return false }
+        return mimeType.hasPrefix("audio/")
+    }
 
-        if mimeType.hasPrefix("image/") {
-            return "photo"
-        } else if mimeType.hasPrefix("video/") {
-            return "film"
-        } else if mimeType.hasPrefix("audio/") {
-            return "music.note"
-        } else if mimeType.contains("pdf") {
-            return "doc.text"
-        } else if mimeType.contains("zip") || mimeType.contains("archive") {
-            return "doc.zipper"
-        } else {
-            return "doc"
+    private func isDocumentFile(_ mimeType: String?) -> Bool {
+        guard let mimeType = mimeType else { return false }
+        return mimeType.contains("pdf") || mimeType.contains("document")
+    }
+
+    private func hasVideoExtension(_ fileName: String?) -> Bool {
+        guard let fileName = fileName else { return false }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return ["mp4", "mov", "avi", "mkv", "webm"].contains(ext)
+    }
+
+    private func hasImageExtension(_ fileName: String?) -> Bool {
+        guard let fileName = fileName else { return false }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return ["jpg", "jpeg", "png", "gif", "webp"].contains(ext)
+    }
+
+    private func hasAudioExtension(_ fileName: String?) -> Bool {
+        guard let fileName = fileName else { return false }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return ["mp3", "wav", "m4a", "flac"].contains(ext)
+    }
+
+    private func hasDocumentExtension(_ fileName: String?) -> Bool {
+        guard let fileName = fileName else { return false }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return ["pdf", "doc", "docx", "txt"].contains(ext)
+    }
+}
+
+// フォルダセクション
+struct DownloadFolderSection: View {
+    let title: String
+    let icon: String
+    let files: [DownloadedFile]
+    @Binding var selectedFileURL: URL?
+
+    var body: some View {
+        if !files.isEmpty {
+            Section(header: HStack {
+                Image(systemName: icon)
+                Text(title)
+            }) {
+                ForEach(files, id: \.id) { download in
+                    Button(action: {
+                        guard let filePath = download.filePath else { return }
+                        selectedFileURL = URL(fileURLWithPath: filePath)
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(download.fileName ?? "無題")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+
+                                HStack {
+                                    Text(DownloadService.shared.formatFileSize(download.fileSize))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+
+                                    if let date = download.downloadedAt {
+                                        Text("・")
+                                            .foregroundColor(.secondary)
+                                        Text(date, style: .date)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                }
+                .onDelete { offsets in
+                    for index in offsets {
+                        DownloadService.shared.deleteFile(files[index])
+                    }
+                }
+            }
         }
     }
 }

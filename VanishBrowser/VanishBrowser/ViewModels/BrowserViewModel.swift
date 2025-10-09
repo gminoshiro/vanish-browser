@@ -16,6 +16,8 @@ class BrowserViewModel: NSObject, ObservableObject {
     @Published var isLoading = false
     @Published var downloadProgress: Float = 0.0
     @Published var isDownloading = false
+    @Published var detectedMediaURL: URL?
+    @Published var detectedMediaFileName: String?
 
     let webView: WKWebView
     private var cancellables = Set<AnyCancellable>()
@@ -100,40 +102,25 @@ extension BrowserViewModel: WKNavigationDelegate {
         print("Navigation failed: \(error.localizedDescription)")
     }
 
-    // ダウンロード開始時
+    // メディア検出時（自動ダウンロードは行わない）
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        // URLの拡張子でダウンロード判定
+        // URLの拡張子でメディア判定
         if let url = navigationAction.request.url,
-           shouldDownloadByExtension(url: url) {
+           isMediaFile(url: url) {
 
-            let fileName = url.lastPathComponent
-            downloadFile(from: url, fileName: fileName)
-            decisionHandler(.cancel)
-            return
-        }
-
-        // Content-Typeでもチェック
-        if let url = navigationAction.request.url,
-           let mimeType = navigationAction.request.value(forHTTPHeaderField: "Content-Type"),
-           shouldDownloadByMimeType(mimeType: mimeType) {
-
-            let fileName = url.lastPathComponent
-            downloadFile(from: url, fileName: fileName)
-            decisionHandler(.cancel)
-            return
+            // メディアURLを保存してボタン表示
+            DispatchQueue.main.async {
+                self.detectedMediaURL = url
+                self.detectedMediaFileName = url.lastPathComponent
+            }
         }
 
         decisionHandler(.allow)
     }
 
-    private func shouldDownloadByExtension(url: URL) -> Bool {
-        let downloadableExtensions = ["pdf", "zip", "mp4", "mov", "avi", "mkv", "mp3", "wav", "m4a", "jpg", "jpeg", "png", "gif", "webp"]
+    private func isMediaFile(url: URL) -> Bool {
+        let mediaExtensions = ["mp4", "mov", "avi", "mkv", "webm", "mp3", "wav", "m4a", "flac"]
         let ext = url.pathExtension.lowercased()
-        return downloadableExtensions.contains(ext)
-    }
-
-    private func shouldDownloadByMimeType(mimeType: String) -> Bool {
-        let downloadableTypes = ["application/pdf", "application/zip", "image/", "video/", "audio/"]
-        return downloadableTypes.contains { mimeType.hasPrefix($0) }
+        return mediaExtensions.contains(ext)
     }
 }
