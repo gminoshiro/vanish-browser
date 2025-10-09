@@ -11,7 +11,8 @@ import QuickLook
 struct DownloadListView: View {
     @Environment(\.dismiss) var dismiss
     @State private var downloads: [DownloadedFile] = []
-    @State private var selectedFileURL: URL?
+    @State private var selectedFile: DownloadedFile?
+    @State private var showFileInfo = false
 
     var body: some View {
         NavigationView {
@@ -28,11 +29,26 @@ struct DownloadListView: View {
                     .listRowBackground(Color.clear)
                 } else {
                     // フォルダ構成表示
-                    DownloadFolderSection(title: "動画", icon: "film", files: videoFiles, selectedFileURL: $selectedFileURL)
-                    DownloadFolderSection(title: "画像", icon: "photo", files: imageFiles, selectedFileURL: $selectedFileURL)
-                    DownloadFolderSection(title: "音楽", icon: "music.note", files: audioFiles, selectedFileURL: $selectedFileURL)
-                    DownloadFolderSection(title: "書類", icon: "doc.text", files: documentFiles, selectedFileURL: $selectedFileURL)
-                    DownloadFolderSection(title: "その他", icon: "doc", files: otherFiles, selectedFileURL: $selectedFileURL)
+                    DownloadFolderSection(title: "動画", icon: "film", files: videoFiles, onSelect: { file in
+                        selectedFile = file
+                        showFileInfo = true
+                    })
+                    DownloadFolderSection(title: "画像", icon: "photo", files: imageFiles, onSelect: { file in
+                        selectedFile = file
+                        showFileInfo = true
+                    })
+                    DownloadFolderSection(title: "音楽", icon: "music.note", files: audioFiles, onSelect: { file in
+                        selectedFile = file
+                        showFileInfo = true
+                    })
+                    DownloadFolderSection(title: "書類", icon: "doc.text", files: documentFiles, onSelect: { file in
+                        selectedFile = file
+                        showFileInfo = true
+                    })
+                    DownloadFolderSection(title: "その他", icon: "doc", files: otherFiles, onSelect: { file in
+                        selectedFile = file
+                        showFileInfo = true
+                    })
                 }
             }
             .navigationTitle("ダウンロード")
@@ -47,7 +63,13 @@ struct DownloadListView: View {
             .onAppear {
                 loadDownloads()
             }
-            .quickLookPreview($selectedFileURL)
+            .alert("ファイル情報", isPresented: $showFileInfo) {
+                Button("OK") {}
+            } message: {
+                if let file = selectedFile {
+                    Text("\(file.fileName ?? "無題")\n\nサイズ: \(DownloadService.shared.formatFileSize(file.fileSize))\n\n保存先: \(file.filePath ?? "")")
+                }
+            }
         }
     }
 
@@ -130,7 +152,7 @@ struct DownloadFolderSection: View {
     let title: String
     let icon: String
     let files: [DownloadedFile]
-    @Binding var selectedFileURL: URL?
+    let onSelect: (DownloadedFile) -> Void
 
     var body: some View {
         if !files.isEmpty {
@@ -140,8 +162,7 @@ struct DownloadFolderSection: View {
             }) {
                 ForEach(files, id: \.id) { download in
                     Button(action: {
-                        guard let filePath = download.filePath else { return }
-                        selectedFileURL = URL(fileURLWithPath: filePath)
+                        onSelect(download)
                     }) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
