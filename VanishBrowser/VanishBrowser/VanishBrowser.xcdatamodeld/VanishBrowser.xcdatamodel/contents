@@ -9,6 +9,7 @@
         <attribute name="downloadedAt" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="isEncrypted" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
         <attribute name="thumbnailPath" optional="YES" attributeType="String"/>
+        <attribute name="folder" optional="YES" attributeType="String"/>
     </entity>
     <entity name="Bookmark" representedClassName="Bookmark" syncable="YES" codeGenerationType="class">
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>

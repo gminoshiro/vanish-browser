@@ -8,6 +8,7 @@
 import SwiftUI
 import AVKit
 import QuickLook
+import Combine
 
 struct FileViewerView: View {
     let file: DownloadedFile
@@ -15,32 +16,91 @@ struct FileViewerView: View {
     @State private var player: AVPlayer?
     @State private var image: UIImage?
     @State private var showQuickLook = false
+    @State private var currentScale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+    @State private var cancellables = Set<AnyCancellable>()
+    @State private var isLoading = true
+    @State private var showCustomVideoPlayer = false  // カスタムプレーヤー表示用
+
+    init(file: DownloadedFile) {
+        self.file = file
+        print("🎬 FileViewerView初期化: \(file.fileName ?? "無名")")
+        print("🎬 filePath: \(file.filePath ?? "nil")")
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        if isLoading {
+            ProgressView("読み込み中...")
+                .progressViewStyle(.circular)
+                .scaleEffect(1.5)
+                .foregroundColor(.white)
+        } else if let image = image {
+            imageView(image: image)
+        } else if showCustomVideoPlayer {
+            // カスタムプレーヤーはfullScreenCoverで表示されるので空表示
+            Color.black
+        } else {
+            QuickLookView(url: fileURL)
+        }
+    }
+
+    private func imageView(image: UIImage) -> some View {
+        GeometryReader { geometry in
+            ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: geometry.size.width)
+                    .scaleEffect(currentScale)
+                    .gesture(magnificationGesture)
+                    .gesture(doubleTapGesture)
+            }
+        }
+    }
+
+    private var magnificationGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                currentScale = lastScale * value
+            }
+            .onEnded { value in
+                lastScale = currentScale
+                if currentScale < 1.0 {
+                    withAnimation {
+                        currentScale = 1.0
+                        lastScale = 1.0
+                    }
+                } else if currentScale > 5.0 {
+                    withAnimation {
+                        currentScale = 5.0
+                        lastScale = 5.0
+                    }
+                }
+            }
+    }
+
+    private var doubleTapGesture: some Gesture {
+        TapGesture(count: 2)
+            .onEnded {
+                withAnimation {
+                    if currentScale > 1.0 {
+                        currentScale = 1.0
+                        lastScale = 1.0
+                    } else {
+                        currentScale = 2.0
+                        lastScale = 2.0
+                    }
+                }
+            }
+    }
 
     var body: some View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if let image = image {
-                    // 画像表示
-                    ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                    }
-                } else if let player = player {
-                    // 動画再生
-                    VideoPlayer(player: player)
-                        .onAppear {
-                            player.play()
-                        }
-                        .onDisappear {
-                            player.pause()
-                        }
-                } else {
-                    // QuickLookで表示
-                    QuickLookView(url: fileURL)
-                }
+                contentView
             }
             .navigationTitle(file.fileName ?? "無題")
             .navigationBarTitleDisplayMode(.inline)
@@ -62,26 +122,46 @@ struct FileViewerView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Color.black.opacity(0.8), for: .navigationBar)
         }
+        .fullScreenCover(isPresented: $showCustomVideoPlayer) {
+            CustomVideoPlayerView(
+                videoURL: fileURL,
+                videoFileName: file.fileName ?? "無題",
+                showDownloadButton: false,  // DL済みなのでDLボタンなし
+                isPresented: $showCustomVideoPlayer
+            )
+        }
         .onAppear {
+            print("👁️ FileViewerView.onAppear呼ばれました")
             loadFile()
         }
     }
 
     private var fileURL: URL {
-        URL(fileURLWithPath: file.filePath ?? "")
+        guard let relativePath = file.filePath else {
+            return URL(fileURLWithPath: "")
+        }
+        // 相対パスを絶対パスに変換
+        let absolutePath = DownloadService.shared.getAbsolutePath(from: relativePath)
+        return URL(fileURLWithPath: absolutePath)
     }
 
     private func loadFile() {
-        guard let filePath = file.filePath else {
+        guard let relativePath = file.filePath else {
             print("❌ FileViewerView: ファイルパスがありません")
+            self.isLoading = false
             return
         }
 
+        // 相対パスを絶対パスに変換
+        let filePath = DownloadService.shared.getAbsolutePath(from: relativePath)
         let url = URL(fileURLWithPath: filePath)
-        print("📂 FileViewerView: ファイルロード開始: \(filePath)")
+        print("📂 FileViewerView: ファイルロード開始")
+        print("📂 相対パス: \(relativePath)")
+        print("📂 絶対パス: \(filePath)")
 
         guard FileManager.default.fileExists(atPath: filePath) else {
             print("❌ ファイルが存在しません: \(filePath)")
+            self.isLoading = false
             return
         }
 
@@ -89,27 +169,56 @@ struct FileViewerView: View {
         print("📝 拡張子: \(ext)")
 
         if ["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext) {
-            // 画像を読み込み
-            print("🖼️ 画像として読み込み中...")
-            do {
-                let data = try Data(contentsOf: url)
-                if let loadedImage = UIImage(data: data) {
-                    self.image = loadedImage
-                    print("✅ 画像読み込み成功: \(loadedImage.size)")
-                } else {
-                    print("❌ UIImage作成失敗")
+            // 画像を非同期で読み込み
+            print("🖼️ 画像として読み込み中: \(filePath)")
+            print("🖼️ ファイル存在確認: \(FileManager.default.fileExists(atPath: filePath))")
+
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    print("🖼️ Data読み込み開始...")
+                    let data = try Data(contentsOf: url)
+                    print("🖼️ Data読み込み完了: \(data.count) bytes")
+
+                    if let loadedImage = UIImage(data: data) {
+                        print("🖼️ UIImage作成成功: \(loadedImage.size)")
+                        DispatchQueue.main.async {
+                            self.image = loadedImage
+                            self.isLoading = false
+                            print("✅ 画像表示成功")
+                        }
+                    } else {
+                        print("❌ UIImage作成失敗（dataはあるがUIImageに変換できない）")
+                        DispatchQueue.main.async {
+                            self.isLoading = false
+                        }
+                    }
+                } catch {
+                    print("❌ 画像読み込みエラー: \(error.localizedDescription)")
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                    }
                 }
-            } catch {
-                print("❌ 画像読み込みエラー: \(error)")
             }
-        } else if ["mp4", "mov", "m4v", "avi", "mkv"].contains(ext) {
-            // 動画プレイヤーを作成
-            print("🎬 動画として読み込み中...")
-            self.player = AVPlayer(url: url)
-            print("✅ 動画プレイヤー作成成功")
+
+            // タイムアウト処理（5秒）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                if self.isLoading {
+                    print("⏱️ 画像読み込みタイムアウト")
+                    self.isLoading = false
+                }
+            }
+        } else if ["mp4", "mov", "m4v", "avi", "mkv", "webm", "m3u8"].contains(ext) {
+            // カスタム動画プレイヤーを表示（m3u8も含む）
+            print("🎬 カスタム動画プレイヤーを表示...")
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.showCustomVideoPlayer = true
+                print("✅ カスタムプレイヤー表示開始: \(url)")
+            }
         } else {
             // その他のファイルはQuickLookで表示
             print("📄 QuickLookで表示: \(ext)")
+            self.isLoading = false
         }
     }
 }

@@ -7,17 +7,197 @@
 
 import SwiftUI
 import QuickLook
+import AVFoundation
+
+enum SortOption: String, CaseIterable {
+    case name = "名前"
+    case date = "日付"
+    case size = "サイズ"
+}
 
 struct DownloadListView: View {
     @Environment(\.dismiss) var dismiss
     @State private var downloads: [DownloadedFile] = []
+    @State private var folders: [String] = []
     @State private var selectedFile: DownloadedFile?
-    @State private var showFileViewer = false
+    @State private var showCreateFolder = false
+    @State private var newFolderName = ""
+    @State private var showRenameFile = false
+    @State private var newFileName = ""
+    @State private var showMoveFile = false
+    @State private var selectedFolder = ""
+    @State private var showDeleteFolder = false
+    @State private var folderToDelete = ""
+    @State private var sortOption: SortOption = .date
+    @State private var showRenameFolder = false
+    @State private var newFolderRename = ""
+    @State private var folderToRename = ""
+    @State private var searchText = ""
+    @State private var selectedFolderForView: String? = nil // フォルダ内部表示用
+    @State private var downloadProgress: Float = 0.0
+    @State private var isDownloading = false
+    @State private var downloadingFileName = ""
+
+    var filteredDownloads: [DownloadedFile] {
+        if searchText.isEmpty {
+            return downloads
+        }
+        return downloads.filter { file in
+            file.fileName?.localizedCaseInsensitiveContains(searchText) ?? false
+        }
+    }
+
+    @ViewBuilder
+    var homeFilesSection: some View {
+        let homeFiles = filesInFolder("")
+        ForEach(homeFiles, id: \.id) { download in
+            fileRow(for: download)
+        }
+    }
 
     var body: some View {
         NavigationView {
+            VStack(spacing: 0) {
+                // 検索バーとソートメニュー
+                HStack {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        TextField("ファイルを検索", text: $searchText)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(8)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+
+                    Menu {
+                        ForEach(SortOption.allCases, id: \.self) { option in
+                            Button(action: {
+                                sortOption = option
+                                loadDownloads()
+                            }) {
+                                HStack {
+                                    Text(option.rawValue)
+                                    if sortOption == option {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.arrow.down")
+                            Text(sortOption.rawValue)
+                        }
+                        .font(.caption)
+                        .padding(8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+
+                // ダウンロード進捗バー
+                if isDownloading {
+                    VStack(spacing: 4) {
+                        HStack {
+                            Text("ダウンロード中...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("\(Int(downloadProgress * 100))%")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        ProgressView(value: downloadProgress, total: 1.0)
+                            .progressViewStyle(.linear)
+                        Text(downloadingFileName)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGray6))
+                }
+
             List {
-                if downloads.isEmpty {
+                // ダウンロード中のファイルセクション
+                if !DownloadManager.shared.activeDownloads.isEmpty {
+                    Section {
+                        NavigationLink(destination: ActiveDownloadsView()) {
+                            HStack {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .foregroundColor(.blue)
+                                Text("ダウンロード中 (\(DownloadManager.shared.activeDownloads.count))")
+                                    .font(.headline)
+                            }
+                        }
+                    }
+                }
+
+                if selectedFolderForView != nil {
+                    // フォルダ内のファイル表示
+                    ForEach(filesInFolder(selectedFolderForView!), id: \.id) { download in
+                        NavigationLink(destination: FileViewerView(file: download)) {
+                            HStack(spacing: 12) {
+                                ThumbnailView(file: download)
+                                    .frame(width: 60, height: 60)
+                                    .cornerRadius(8)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(download.fileName ?? "無題")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                        .lineLimit(2)
+
+                                    HStack {
+                                        Text(DownloadService.shared.formatFileSize(download.fileSize))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+
+                                        if let date = download.downloadedAt {
+                                            Text("•")
+                                                .foregroundColor(.secondary)
+                                            Text(date.formatted(date: .abbreviated, time: .omitted))
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                }
+
+                                Spacer()
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                DownloadService.shared.deleteFile(download)
+                                loadDownloads()
+                            } label: {
+                                Label("削除", systemImage: "trash")
+                            }
+
+                            Button {
+                                selectedFile = download
+                                newFileName = download.fileName ?? ""
+                                showRenameFile = true
+                            } label: {
+                                Label("名前変更", systemImage: "pencil")
+                            }
+                            .tint(.blue)
+
+                            Button {
+                                selectedFile = download
+                                showMoveFile = true
+                            } label: {
+                                Label("移動", systemImage: "folder")
+                            }
+                            .tint(.orange)
+                        }
+                    }
+                } else if filteredDownloads.isEmpty && folders.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "arrow.down.circle")
                             .font(.system(size: 60))
@@ -28,120 +208,314 @@ struct DownloadListView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .listRowBackground(Color.clear)
                 } else {
-                    // フォルダ構成表示
-                    DownloadFolderSection(title: "動画", icon: "film", files: videoFiles, onSelect: { file in
-                        selectedFile = file
-                        showFileViewer = true
-                    })
-                    DownloadFolderSection(title: "画像", icon: "photo", files: imageFiles, onSelect: { file in
-                        selectedFile = file
-                        showFileViewer = true
-                    })
-                    DownloadFolderSection(title: "音楽", icon: "music.note", files: audioFiles, onSelect: { file in
-                        selectedFile = file
-                        showFileViewer = true
-                    })
-                    DownloadFolderSection(title: "書類", icon: "doc.text", files: documentFiles, onSelect: { file in
-                        selectedFile = file
-                        showFileViewer = true
-                    })
-                    DownloadFolderSection(title: "その他", icon: "doc", files: otherFiles, onSelect: { file in
-                        selectedFile = file
-                        showFileViewer = true
-                    })
+                    // ホームのファイル（フォルダなし）
+                    homeFilesSection
+
+                    // フォルダ一覧のみ表示（ファイルは非表示）
+                    ForEach(folders, id: \.self) { folder in
+                        Button(action: {
+                            selectedFolderForView = folder
+                        }) {
+                            HStack {
+                                Image(systemName: folderIcon(folder))
+                                    .font(.title2)
+                                    .foregroundColor(.blue)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(folder)
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+
+                                    Text("\(filesInFolder(folder).count)個のファイル")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                folderToDelete = folder
+                                showDeleteFolder = true
+                            } label: {
+                                Label("削除", systemImage: "trash")
+                            }
+
+                            Button {
+                                folderToRename = folder
+                                newFolderRename = folder
+                                showRenameFolder = true
+                            } label: {
+                                Label("名前変更", systemImage: "pencil")
+                            }
+                            .tint(.blue)
+                        }
+                    }
                 }
             }
-            .navigationTitle("ダウンロード")
+            }
+            .navigationTitle(selectedFolderForView ?? "ダウンロード")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("閉じる") {
-                        dismiss()
+                    if selectedFolderForView != nil {
+                        Button(action: {
+                            selectedFolderForView = nil
+                        }) {
+                            HStack {
+                                Image(systemName: "chevron.left")
+                                Text("戻る")
+                            }
+                        }
+                    } else {
+                        Button("閉じる") {
+                            dismiss()
+                        }
+                    }
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showCreateFolder = true
+                    }) {
+                        Image(systemName: "folder.badge.plus")
                     }
                 }
             }
             .onAppear {
                 loadDownloads()
+
+                // ダウンロード進捗の監視
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("DownloadProgress"),
+                    object: nil,
+                    queue: .main
+                ) { notification in
+                    if let progress = notification.object as? Float {
+                        downloadProgress = progress
+                        isDownloading = progress < 1.0
+
+                        if let userInfo = notification.userInfo,
+                           let fileName = userInfo["fileName"] as? String {
+                            downloadingFileName = fileName
+                        }
+                    }
+                }
+
+                // ダウンロード完了の監視
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("DownloadCompleted"),
+                    object: nil,
+                    queue: .main
+                ) { notification in
+                    isDownloading = false
+                    downloadProgress = 0.0
+                    downloadingFileName = ""
+                    loadDownloads()
+                }
             }
-            .sheet(isPresented: $showFileViewer) {
-                if let file = selectedFile {
-                    FileViewerView(file: file)
+            .alert("新規フォルダ", isPresented: $showCreateFolder) {
+                TextField("フォルダ名", text: $newFolderName)
+                Button("作成") {
+                    if !newFolderName.isEmpty {
+                        if DownloadService.shared.createFolder(name: newFolderName) {
+                            print("✅ フォルダ作成成功: \(newFolderName)")
+                            // 空フォルダも表示するために即座にフォルダ一覧を追加
+                            if !folders.contains(newFolderName) {
+                                folders.append(newFolderName)
+                                folders.sort()
+                            }
+                            // さらに念のため再読み込み
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                loadDownloads()
+                            }
+                        }
+                        newFolderName = ""
+                    }
+                }
+                Button("キャンセル", role: .cancel) {
+                    newFolderName = ""
+                }
+            } message: {
+                Text("新しいフォルダ名を入力してください")
+            }
+            .alert("ファイルをリネーム", isPresented: $showRenameFile) {
+                TextField("新しいファイル名", text: $newFileName)
+                Button("変更") {
+                    if !newFileName.isEmpty, let file = selectedFile {
+                        if DownloadService.shared.renameFile(file, newName: newFileName) {
+                            loadDownloads()
+                        }
+                        newFileName = ""
+                    }
+                }
+                Button("キャンセル", role: .cancel) {
+                    newFileName = ""
+                }
+            }
+            .alert("フォルダに移動", isPresented: $showMoveFile) {
+                TextField("移動先フォルダ名", text: $selectedFolder)
+                Button("移動") {
+                    if !selectedFolder.isEmpty, let file = selectedFile {
+                        if DownloadService.shared.moveFile(file, toFolder: selectedFolder) {
+                            loadDownloads()
+                        }
+                        selectedFolder = ""
+                    }
+                }
+                Button("キャンセル", role: .cancel) {
+                    selectedFolder = ""
+                }
+            }
+            .alert("フォルダを削除", isPresented: $showDeleteFolder) {
+                Button("削除", role: .destructive) {
+                    if DownloadService.shared.deleteFolder(name: folderToDelete) {
+                        loadDownloads()
+                    }
+                    folderToDelete = ""
+                }
+                Button("キャンセル", role: .cancel) {
+                    folderToDelete = ""
+                }
+            } message: {
+                Text("フォルダ「\(folderToDelete)」とその中の全てのファイルを削除しますか？")
+            }
+            .alert("フォルダ名を変更", isPresented: $showRenameFolder) {
+                TextField("新しいフォルダ名", text: $newFolderRename)
+                Button("変更") {
+                    if !newFolderRename.isEmpty && folderToRename != newFolderRename {
+                        if DownloadService.shared.renameFolder(from: folderToRename, to: newFolderRename) {
+                            loadDownloads()
+                        }
+                    }
+                    newFolderRename = ""
+                    folderToRename = ""
+                }
+                Button("キャンセル", role: .cancel) {
+                    newFolderRename = ""
+                    folderToRename = ""
                 }
             }
         }
     }
 
-    private var videoFiles: [DownloadedFile] {
-        downloads.filter { isVideoFile($0.mimeType) || hasVideoExtension($0.fileName) }
-    }
-
-    private var imageFiles: [DownloadedFile] {
-        downloads.filter { isImageFile($0.mimeType) || hasImageExtension($0.fileName) }
-    }
-
-    private var audioFiles: [DownloadedFile] {
-        downloads.filter { isAudioFile($0.mimeType) || hasAudioExtension($0.fileName) }
-    }
-
-    private var documentFiles: [DownloadedFile] {
-        downloads.filter { isDocumentFile($0.mimeType) || hasDocumentExtension($0.fileName) }
-    }
-
-    private var otherFiles: [DownloadedFile] {
-        downloads.filter { file in
-            !videoFiles.contains(where: { $0.id == file.id }) &&
-            !imageFiles.contains(where: { $0.id == file.id }) &&
-            !audioFiles.contains(where: { $0.id == file.id }) &&
-            !documentFiles.contains(where: { $0.id == file.id })
+    private func filesInFolder(_ folderName: String) -> [DownloadedFile] {
+        let folderFiles: [DownloadedFile]
+        if folderName.isEmpty {
+            // ホーム：folderがnilまたは空文字列のファイル
+            folderFiles = filteredDownloads.filter { $0.folder == nil || $0.folder?.isEmpty == true }
+        } else {
+            folderFiles = filteredDownloads.filter { $0.folder == folderName }
         }
+
+        // ソート
+        switch sortOption {
+        case .name:
+            return folderFiles.sorted { ($0.fileName ?? "") < ($1.fileName ?? "") }
+        case .date:
+            return folderFiles.sorted { ($0.downloadedAt ?? Date.distantPast) > ($1.downloadedAt ?? Date.distantPast) }
+        case .size:
+            return folderFiles.sorted { $0.fileSize > $1.fileSize }
+        }
+    }
+
+    private func folderIcon(_ folderName: String) -> String {
+        // 全てのフォルダを統一アイコンに
+        return "folder.fill"
     }
 
     private func loadDownloads() {
         downloads = DownloadService.shared.fetchDownloadedFiles()
+        loadFolders()
     }
 
-    private func isVideoFile(_ mimeType: String?) -> Bool {
-        guard let mimeType = mimeType else { return false }
-        return mimeType.hasPrefix("video/")
+    @ViewBuilder
+    private func fileRow(for download: DownloadedFile) -> some View {
+        NavigationLink(destination: FileViewerView(file: download)) {
+            HStack(spacing: 12) {
+                ThumbnailView(file: download)
+                    .frame(width: 60, height: 60)
+                    .cornerRadius(8)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(download.fileName ?? "無題")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+
+                    HStack {
+                        Text(DownloadService.shared.formatFileSize(download.fileSize))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        if let date = download.downloadedAt {
+                            Text("•")
+                                .foregroundColor(.secondary)
+                            Text(date.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(.vertical, 4)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                DownloadService.shared.deleteFile(download)
+                loadDownloads()
+            } label: {
+                Label("削除", systemImage: "trash")
+            }
+
+            Button {
+                selectedFile = download
+                newFileName = download.fileName ?? ""
+                showRenameFile = true
+            } label: {
+                Label("名前変更", systemImage: "pencil")
+            }
+            .tint(.blue)
+
+            Button {
+                selectedFile = download
+                showMoveFile = true
+            } label: {
+                Label("移動", systemImage: "folder")
+            }
+            .tint(.orange)
+        }
     }
 
-    private func isImageFile(_ mimeType: String?) -> Bool {
-        guard let mimeType = mimeType else { return false }
-        return mimeType.hasPrefix("image/")
-    }
+    private func loadFolders() {
+        // ファイルから取得したフォルダ
+        let fileFolders = Set(downloads.compactMap { $0.folder })
 
-    private func isAudioFile(_ mimeType: String?) -> Bool {
-        guard let mimeType = mimeType else { return false }
-        return mimeType.hasPrefix("audio/")
-    }
+        // ファイルシステムから実際のフォルダを取得（空フォルダも含む）
+        let fileManager = FileManager.default
+        let downloadsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Downloads")
 
-    private func isDocumentFile(_ mimeType: String?) -> Bool {
-        guard let mimeType = mimeType else { return false }
-        return mimeType.contains("pdf") || mimeType.contains("document")
-    }
+        var allFolders = fileFolders
+        if let folderContents = try? fileManager.contentsOfDirectory(at: downloadsDir, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+            for url in folderContents {
+                if let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey]),
+                   resourceValues.isDirectory == true {
+                    allFolders.insert(url.lastPathComponent)
+                }
+            }
+        }
 
-    private func hasVideoExtension(_ fileName: String?) -> Bool {
-        guard let fileName = fileName else { return false }
-        let ext = (fileName as NSString).pathExtension.lowercased()
-        return ["mp4", "mov", "avi", "mkv", "webm"].contains(ext)
-    }
+        folders = Array(allFolders).sorted()
 
-    private func hasImageExtension(_ fileName: String?) -> Bool {
-        guard let fileName = fileName else { return false }
-        let ext = (fileName as NSString).pathExtension.lowercased()
-        return ["jpg", "jpeg", "png", "gif", "webp"].contains(ext)
-    }
-
-    private func hasAudioExtension(_ fileName: String?) -> Bool {
-        guard let fileName = fileName else { return false }
-        let ext = (fileName as NSString).pathExtension.lowercased()
-        return ["mp3", "wav", "m4a", "flac"].contains(ext)
-    }
-
-    private func hasDocumentExtension(_ fileName: String?) -> Bool {
-        guard let fileName = fileName else { return false }
-        let ext = (fileName as NSString).pathExtension.lowercased()
-        return ["pdf", "doc", "docx", "txt"].contains(ext)
+        print("📁 読み込んだフォルダ一覧: \(folders)")
+        print("📄 ダウンロード済みファイル数: \(downloads.count)")
     }
 }
 
@@ -151,22 +525,54 @@ struct DownloadFolderSection: View {
     let icon: String
     let files: [DownloadedFile]
     let onSelect: (DownloadedFile) -> Void
+    let onRename: ((DownloadedFile) -> Void)?
+    let onMove: ((DownloadedFile) -> Void)?
+    let onDeleteFolder: (() -> Void)?
+    let onRenameFolder: (() -> Void)?
 
     var body: some View {
-        if !files.isEmpty {
-            Section(header: HStack {
-                Image(systemName: icon)
-                Text(title)
-            }) {
+        Section(header: HStack {
+            Image(systemName: icon)
+            Text(title)
+            Spacer()
+            if let onRenameFolder = onRenameFolder {
+                Button(action: onRenameFolder) {
+                    Image(systemName: "pencil")
+                        .foregroundColor(.blue)
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
+            if let onDeleteFolder = onDeleteFolder {
+                Button(action: onDeleteFolder) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
+        }) {
+            if files.isEmpty {
+                Text("フォルダは空です")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+                    .padding(.vertical, 8)
+            } else {
                 ForEach(files, id: \.id) { download in
                     Button(action: {
                         onSelect(download)
                     }) {
-                        HStack {
+                        HStack(spacing: 12) {
+                            // サムネイル表示
+                            ThumbnailView(file: download)
+                                .frame(width: 60, height: 60)
+                                .cornerRadius(8)
+
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(download.fileName ?? "無題")
                                     .font(.headline)
                                     .foregroundColor(.primary)
+                                    .lineLimit(2)
 
                                 HStack {
                                     Text(DownloadService.shared.formatFileSize(download.fileSize))
@@ -185,14 +591,144 @@ struct DownloadFolderSection: View {
                             Spacer()
                         }
                     }
-                }
-                .onDelete { offsets in
-                    for index in offsets {
-                        DownloadService.shared.deleteFile(files[index])
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            DownloadService.shared.deleteFile(download)
+                        } label: {
+                            Label("削除", systemImage: "trash")
+                        }
+
+                        if let onMove = onMove {
+                            Button {
+                                onMove(download)
+                            } label: {
+                                Label("移動", systemImage: "folder")
+                            }
+                            .tint(.blue)
+                        }
+
+                        if let onRename = onRename {
+                            Button {
+                                onRename(download)
+                            } label: {
+                                Label("リネーム", systemImage: "pencil")
+                            }
+                            .tint(.orange)
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+// サムネイル表示
+struct ThumbnailView: View {
+    let file: DownloadedFile
+    @State private var thumbnail: UIImage?
+
+    var body: some View {
+        ZStack {
+            if let thumbnail = thumbnail {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 60, height: 60)
+                    .clipped()
+            } else {
+                Color(.systemGray5)
+                Image(systemName: iconName)
+                    .foregroundColor(.gray)
+            }
+        }
+        .onAppear {
+            loadThumbnail()
+        }
+    }
+
+    private var iconName: String {
+        guard let fileName = file.fileName else { return "doc" }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+
+        if ["mp4", "mov", "avi", "mkv", "webm"].contains(ext) {
+            return "video"
+        } else if ["jpg", "jpeg", "png", "gif", "webp"].contains(ext) {
+            return "photo"
+        } else if ["mp3", "wav", "m4a", "flac"].contains(ext) {
+            return "music.note"
+        } else {
+            return "doc"
+        }
+    }
+
+    private func loadThumbnail() {
+        guard let relativePath = file.filePath else { return }
+        // 相対パスを絶対パスに変換
+        let filePath = DownloadService.shared.getAbsolutePath(from: relativePath)
+        let url = URL(fileURLWithPath: filePath)
+        let ext = url.pathExtension.lowercased()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            var generatedThumbnail: UIImage?
+
+            if ["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext) {
+                // 画像のサムネイル（リサイズして高速化）
+                if let data = try? Data(contentsOf: url),
+                   let image = UIImage(data: data) {
+                    // 60x60にリサイズして高速化
+                    generatedThumbnail = resizeImage(image: image, targetSize: CGSize(width: 120, height: 120))
+                }
+            } else if ["mp4", "mov", "m4v", "avi", "mkv"].contains(ext) {
+                // 動画のサムネイル生成
+                generatedThumbnail = generateVideoThumbnail(url: url)
+            }
+
+            if let thumbnail = generatedThumbnail {
+                DispatchQueue.main.async {
+                    self.thumbnail = thumbnail
+                }
+            }
+        }
+    }
+
+    private func generateVideoThumbnail(url: URL) -> UIImage? {
+        let asset = AVURLAsset(url: url)
+        let imageGenerator = AVAssetImageGenerator(asset: asset)
+        imageGenerator.appliesPreferredTrackTransform = true
+        imageGenerator.maximumSize = CGSize(width: 120, height: 120)
+
+        let time = CMTime(seconds: 1, preferredTimescale: 600)
+
+        var thumbnailImage: UIImage?
+        let semaphore = DispatchSemaphore(value: 0)
+
+        imageGenerator.generateCGImageAsynchronously(for: time) { cgImage, actualTime, error in
+            if let cgImage = cgImage {
+                thumbnailImage = UIImage(cgImage: cgImage)
+            }
+            semaphore.signal()
+        }
+
+        // タイムアウト付きで待機（最大1秒）
+        _ = semaphore.wait(timeout: .now() + 1.0)
+        return thumbnailImage
+    }
+
+    private func resizeImage(image: UIImage, targetSize: CGSize) -> UIImage? {
+        let size = image.size
+        let widthRatio = targetSize.width / size.width
+        let heightRatio = targetSize.height / size.height
+        let ratio = min(widthRatio, heightRatio)
+
+        let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+        let rect = CGRect(origin: .zero, size: newSize)
+
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        image.draw(in: rect)
+        let newImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        return newImage
     }
 }
 

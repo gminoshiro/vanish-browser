@@ -12,32 +12,52 @@ struct DownloadProgressView: View {
     let progress: Double
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(.blue)
+        VStack(spacing: 16) {
+            HStack(spacing: 16) {
+                // より大きなアイコン
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 50, height: 50)
 
-                VStack(alignment: .leading, spacing: 4) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("ダウンロード中")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
                     Text(fileName)
                         .font(.headline)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .foregroundColor(.primary)
 
-                    Text("\(Int(progress * 100))%")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Text("\(Int(progress * 100))% 完了")
+                        .font(.callout)
+                        .foregroundColor(.blue)
+                        .fontWeight(.semibold)
                 }
 
                 Spacer()
             }
 
-            ProgressView(value: progress)
-                .progressViewStyle(.linear)
+            // より目立つプログレスバー
+            VStack(spacing: 4) {
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .tint(.blue)
+                    .scaleEffect(y: 2.0)
+            }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
-        .padding(.horizontal)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
+        )
+        .padding(.horizontal, 20)
     }
 }

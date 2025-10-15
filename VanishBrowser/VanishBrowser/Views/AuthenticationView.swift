@@ -11,6 +11,7 @@ struct AuthenticationView: View {
     @Binding var isAuthenticated: Bool
     @State private var password = ""
     @State private var authError: String?
+    @AppStorage("authEnabled") private var authEnabled: Bool = false
     @AppStorage("authPassword") private var savedPassword: String = ""
     @AppStorage("useBiometric") private var useBiometric: Bool = true
 
@@ -33,11 +34,20 @@ struct AuthenticationView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
-                SecureField("パスワード", text: $password)
+                TextField("パスワード（数字）", text: $password)
+                    .keyboardType(.numberPad)
                     .textFieldStyle(.roundedBorder)
                     .padding(.horizontal, 40)
-                    .onSubmit {
-                        authenticateWithPassword()
+                    .multilineTextAlignment(.center)
+                    .font(.title2)
+                    .onChange(of: password) { _, newValue in
+                        // 数字のみ、8桁まで制限
+                        let filtered = newValue.filter { $0.isNumber }
+                        if filtered.count <= 8 {
+                            password = filtered
+                        } else {
+                            password = String(filtered.prefix(8))
+                        }
                     }
 
                 Button("認証する") {
@@ -61,6 +71,12 @@ struct AuthenticationView: View {
         }
         .padding()
         .onAppear {
+            // 認証が無効なら自動的に通過
+            if !authEnabled {
+                isAuthenticated = true
+                return
+            }
+
             if useBiometric && BiometricAuthService.shared.canUseBiometrics() {
                 authenticate()
             }

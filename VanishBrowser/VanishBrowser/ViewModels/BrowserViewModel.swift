@@ -54,139 +54,267 @@ class BrowserViewModel: NSObject, ObservableObject {
     @Published var isDownloading = false
     @Published var detectedMediaURL: URL?
     @Published var detectedMediaFileName: String?
+    @Published var hasVideo = false  // 動画が検出されたか
+    @Published var currentVideoURL: URL?  // 現在の動画URL
+    @Published var loadError: Error?  // ページ読み込みエラー
+    private var videoStoppedTimer: Timer?  // videoStopped遅延用タイマー
+    @Published var showErrorAlert = false  // エラーアラート表示フラグ
+    @Published var loadingProgress: Double = 0.0  // ページ読み込み進捗（0.0〜1.0）
+    @Published var searchMatchCount: Int = 0  // 検索結果のマッチ数
+    @Published var currentSearchMatch: Int = 0  // 現在のマッチ位置
+    @Published var isReaderMode = false  // リーダーモード
+    @Published var readerContent: String = ""  // リーダーモードのコンテンツ
+    @Published var isDesktopMode = false  // デスクトップサイト表示
 
     let webView: WKWebView
     private var cancellables = Set<AnyCancellable>()
+    private var progressObserver: NSKeyValueObservation?
+    private var currentFindConfiguration: WKFindConfiguration?
+    private var originalHTML: String = ""
 
     override init() {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent() // プライバシー保護：永続化しない
 
-        // すべてのメディア操作を無効化（長押しメニュー完全ブロック）
-        configuration.allowsInlineMediaPlayback = true
-        configuration.mediaTypesRequiringUserActionForPlayback = []
+        // メディア再生設定
+        configuration.allowsInlineMediaPlayback = true // インライン再生を有効化
+        configuration.allowsPictureInPictureMediaPlayback = false // PIPを無効化
+        configuration.mediaTypesRequiringUserActionForPlayback = .all // 自動再生を防止
 
-        // JavaScriptで動画にDLボタンを追加するスクリプト
+        // カスタムURLスキームハンドラを登録（動画インターセプト用）
+        let videoHandler = VideoURLSchemeHandler()
+        configuration.setURLSchemeHandler(videoHandler, forURLScheme: "vanish-video")
+
+        // JavaScriptで動画検出（再生中の動画URLを通知）
         let mediaDetectionScript = WKUserScript(
             source: """
-            function addDownloadButton(video) {
-                // 既にボタンが追加されているかチェック
-                if (video.dataset.dlButtonAdded) return;
-                video.dataset.dlButtonAdded = 'true';
+            (function() {
+                console.log('📱 Media detection script loaded');
 
-                console.log('🎬 Adding download button to video');
-
-                // ビデオURLを取得
-                let videoUrl = video.src || video.currentSrc;
-                if (!videoUrl) {
-                    const sources = video.querySelectorAll('source');
-                    if (sources.length > 0) {
-                        videoUrl = sources[0].src;
-                    }
-                }
-
-                if (!videoUrl || !videoUrl.startsWith('http')) {
-                    console.log('⚠️ No valid video URL found');
-                    return;
-                }
-
-                // DLボタンを作成
-                const dlButton = document.createElement('button');
-                dlButton.innerHTML = '⬇️ DL';
-                dlButton.style.cssText = `
-                    position: absolute;
-                    bottom: 60px;
-                    right: 16px;
-                    background: rgba(0, 122, 255, 0.95);
-                    color: white;
-                    border: none;
-                    border-radius: 20px;
-                    padding: 10px 20px;
-                    font-size: 16px;
-                    font-weight: bold;
-                    z-index: 999999;
-                    cursor: pointer;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-                    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-                `;
-
-                // ボタンクリック時の処理
-                dlButton.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('📥 Download button clicked:', videoUrl);
-
-                    window.webkit.messageHandlers.videoDownload.postMessage({
-                        url: videoUrl,
-                        fileName: videoUrl.split('/').pop().split('?')[0] || 'video.mp4'
-                    });
-                });
-
-                // ビデオのコンテナを探す
-                let container = video.parentElement;
-                while (container && getComputedStyle(container).position === 'static') {
-                    container = container.parentElement;
-                }
-
-                if (!container) {
-                    // コンテナが見つからない場合はvideoをラップ
-                    const wrapper = document.createElement('div');
-                    wrapper.style.position = 'relative';
-                    wrapper.style.display = 'inline-block';
-                    video.parentNode.insertBefore(wrapper, video);
-                    wrapper.appendChild(video);
-                    container = wrapper;
-                }
-
-                // ボタンを追加
-                container.style.position = 'relative';
-                container.appendChild(dlButton);
-
-                console.log('✅ Download button added');
-            }
-
-            function detectMedia() {
-                const videos = document.querySelectorAll('video');
-
-                videos.forEach(function(video) {
-                    // ビデオが再生可能になったらボタンを追加
-                    if (video.readyState >= 2) {
-                        addDownloadButton(video);
-                    } else {
-                        video.addEventListener('loadeddata', function() {
-                            addDownloadButton(video);
-                        }, { once: true });
-                    }
-
-                    // フルスクリーン変更時にボタンを再配置
-                    video.addEventListener('webkitfullscreenchange', function() {
-                        if (document.webkitFullscreenElement === video) {
-                            console.log('📺 Fullscreen mode');
+                function notifyVideoDetected(video) {
+                    try {
+                        let videoUrl = video.src || video.currentSrc;
+                        if (!videoUrl) {
+                            const sources = video.querySelectorAll('source');
+                            if (sources.length > 0) {
+                                videoUrl = sources[0].src;
+                            }
                         }
+
+                        if (videoUrl && videoUrl.startsWith('http')) {
+                            console.log('🎬 Video detected:', videoUrl);
+                            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.videoDetected) {
+                                window.webkit.messageHandlers.videoDetected.postMessage({
+                                    url: videoUrl,
+                                    fileName: videoUrl.split('/').pop().split('?')[0] || 'video.mp4'
+                                });
+                                console.log('✅ Message sent successfully');
+                            } else {
+                                console.error('❌ videoDetected handler not found');
+                            }
+                        } else {
+                            console.log('⚠️ No valid video URL found');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error in notifyVideoDetected:', error);
+                    }
+                }
+
+                function detectVideos() {
+                    const videos = document.querySelectorAll('video');
+                    console.log('🔍 Checking for videos... Found:', videos.length);
+                    let hasPlayableVideo = false;
+
+                    videos.forEach(function(video) {
+                        // ビデオが存在し、URLがあればDLボタンを表示
+                        const videoUrl = video.src || video.currentSrc;
+                        if (videoUrl && videoUrl.startsWith('http')) {
+                            hasPlayableVideo = true;
+                        } else {
+                            // sourceタグもチェック
+                            const sources = video.querySelectorAll('source');
+                            if (sources.length > 0) {
+                                const sourceUrl = sources[0].src;
+                                if (sourceUrl && sourceUrl.startsWith('http')) {
+                                    hasPlayableVideo = true;
+                                }
+                            }
+                        }
+
+                        if (video.dataset.vanishDetected) return;
+                        video.dataset.vanishDetected = 'true';
+
+                        // 動画の元のURLを保存
+                        const originalSrc = video.src || video.currentSrc;
+                        if (!originalSrc || !originalSrc.startsWith('http')) {
+                            const sources = video.querySelectorAll('source');
+                            if (sources.length > 0 && sources[0].src) {
+                                video.dataset.originalUrl = sources[0].src;
+                            }
+                        } else {
+                            video.dataset.originalUrl = originalSrc;
+                        }
+
+                        // ネイティブコントロールを無効化
+                        video.controls = false;
+                        video.removeAttribute('controls');
+
+                        // Webkit fullscreenボタンを無効化
+                        video.setAttribute('playsinline', 'true');
+                        video.setAttribute('webkit-playsinline', 'true');
+                        video.playsInline = true;
+
+                        // カスタム再生ボタンを作成
+                        const customPlayer = document.createElement('div');
+                        customPlayer.className = 'vanish-custom-player';
+                        const videoRect = video.getBoundingClientRect();
+
+                        // 動画のポスター画像を取得
+                        const posterUrl = video.poster || '';
+
+                        customPlayer.style.cssText = `
+                            position: relative;
+                            width: ${video.offsetWidth || 320}px;
+                            height: ${video.offsetHeight || 180}px;
+                            background: #000 ${posterUrl ? `url('${posterUrl}')` : ''} center/cover no-repeat;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            cursor: pointer;
+                        `;
+
+                        // 再生ボタンアイコン
+                        customPlayer.innerHTML = `
+                            <div style="
+                                width: 80px;
+                                height: 80px;
+                                background: rgba(0, 0, 0, 0.7);
+                                border-radius: 50%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            ">
+                                <div style="
+                                    width: 0;
+                                    height: 0;
+                                    border-left: 30px solid white;
+                                    border-top: 20px solid transparent;
+                                    border-bottom: 20px solid transparent;
+                                    margin-left: 8px;
+                                "></div>
+                            </div>
+                        `;
+
+                        // 動画の代わりに挿入
+                        video.parentElement.insertBefore(customPlayer, video);
+
+                        // カスタムプレーヤーのクリックイベント
+                        customPlayer.addEventListener('click', interceptVideoEvent, true);
+                        customPlayer.addEventListener('touchend', interceptVideoEvent, true);
+
+                        // ビデオが読み込まれたら即座に通知
+                        if (video.readyState >= 2) {
+                            notifyVideoDetected(video);
+                        }
+
+                        // 全てのイベントを横取りして確認ダイアログを表示
+                        function interceptVideoEvent(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.stopImmediatePropagation();
+
+                            // 保存したオリジナルURLを取得
+                            let videoUrl = video.dataset.originalUrl || video.src || video.currentSrc;
+                            if (!videoUrl || !videoUrl.startsWith('http')) {
+                                const sources = video.querySelectorAll('source');
+                                if (sources.length > 0) {
+                                    videoUrl = sources[0].src;
+                                }
+                            }
+
+                            console.log('🎬 Video clicked! URL:', videoUrl);
+
+                            if (videoUrl && videoUrl.startsWith('http')) {
+                                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.videoClicked) {
+                                    window.webkit.messageHandlers.videoClicked.postMessage({
+                                        url: videoUrl,
+                                        fileName: videoUrl.split('/').pop().split('?')[0] || 'video.mp4'
+                                    });
+                                    console.log('✅ videoClicked message sent');
+                                }
+                            } else {
+                                console.error('❌ Invalid video URL:', videoUrl);
+                            }
+
+                            return false;
+                        }
+
+                        // 複数のイベントで横取り
+                        video.addEventListener('click', interceptVideoEvent, true);
+                        video.addEventListener('touchend', interceptVideoEvent, true);
+                        video.addEventListener('mouseup', interceptVideoEvent, true);
+
+                        // 再生を強制的に防止
+                        video.addEventListener('play', function(e) {
+                            if (!video.dataset.vanishApproved) {
+                                e.preventDefault();
+                                video.pause();
+                            }
+                        }, true);
+
+                        // 再生開始時に通知
+                        video.addEventListener('play', function() {
+                            notifyVideoDetected(video);
+                        });
+
+                        // loadeddataイベントでも通知
+                        video.addEventListener('loadeddata', function() {
+                            notifyVideoDetected(video);
+                        });
+
+                        // canplayイベントでも通知
+                        video.addEventListener('canplay', function() {
+                            notifyVideoDetected(video);
+                        });
+
+                        // 停止時に通知
+                        video.addEventListener('pause', function() {
+                            console.log('⏸️ Video paused');
+                            // ページに動画がまだある場合はDLボタンを維持
+                            setTimeout(detectVideos, 100);
+                        });
+
+                        // 終了時に通知
+                        video.addEventListener('ended', function() {
+                            console.log('⏹️ Video ended');
+                            setTimeout(detectVideos, 100);
+                        });
                     });
-                });
-            }
 
-            // MutationObserverで動的に追加される動画を監視
-            const observer = new MutationObserver(function(mutations) {
-                detectMedia();
-            });
+                    // 動画が1つでもあればDLボタンを表示
+                    if (hasPlayableVideo) {
+                        const firstVideo = videos[0];
+                        if (firstVideo) {
+                            // 毎回通知して最新の動画URLを更新
+                            notifyVideoDetected(firstVideo);
+                        }
+                    } else if (videos.length === 0) {
+                        // 動画がなくなったら停止通知
+                        window.webkit.messageHandlers.videoStopped.postMessage({});
+                    }
+                }
 
-            // ページ読み込み後に監視開始
-            if (document.body) {
-                observer.observe(document.body, { childList: true, subtree: true });
-                detectMedia();
-            } else {
-                document.addEventListener('DOMContentLoaded', function() {
-                    observer.observe(document.body, { childList: true, subtree: true });
-                    detectMedia();
-                });
-            }
+                // 定期的に動画を検出（より頻繁に）
+                setInterval(detectVideos, 300);
+                detectVideos();
 
-            // 定期的にチェック
-            setTimeout(detectMedia, 500);
-            setTimeout(detectMedia, 1500);
-            setTimeout(detectMedia, 3000);
+                // DOMContentLoaded後にも実行
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', detectVideos);
+                } else {
+                    detectVideos();
+                }
+            })();
             """,
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: false
@@ -232,13 +360,13 @@ class BrowserViewModel: NSObject, ObservableObject {
                 var hasMoved = false;
 
                 function handleTouchStart(e) {
-                    // 画像かどうかチェック
+                    // 画像または動画かどうかチェック
                     var target = e.target;
-                    if (!target || target.tagName !== 'IMG') {
+                    if (!target || (target.tagName !== 'IMG' && target.tagName !== 'VIDEO')) {
                         return;
                     }
 
-                    console.log('🖼️ Image touchstart detected:', target.src);
+                    console.log('🖼️ Media touchstart detected:', target.src);
 
                     touchStartX = e.touches[0].clientX;
                     touchStartY = e.touches[0].clientY;
@@ -248,15 +376,27 @@ class BrowserViewModel: NSObject, ObservableObject {
                     longPressTimer = setTimeout(function() {
                         if (!hasMoved) {
                             console.log('⏰ Long press triggered for:', target.src);
-                            var imageUrl = target.src || target.currentSrc;
+                            var mediaUrl = target.src || target.currentSrc;
 
-                            if (imageUrl) {
+                            // 動画の場合はsourceタグもチェック
+                            if (target.tagName === 'VIDEO' && !mediaUrl) {
+                                var sources = target.querySelectorAll('source');
+                                if (sources.length > 0) {
+                                    mediaUrl = sources[0].src;
+                                }
+                            }
+
+                            if (mediaUrl) {
                                 try {
-                                    window.webkit.messageHandlers.imageLongPress.postMessage({
-                                        url: imageUrl,
-                                        fileName: imageUrl.split('/').pop().split('?')[0] || 'image.jpg'
+                                    var isVideo = target.tagName === 'VIDEO';
+                                    var handler = isVideo ? 'videoDownload' : 'imageLongPress';
+                                    var defaultName = isVideo ? 'video.mp4' : 'image.jpg';
+
+                                    window.webkit.messageHandlers[handler].postMessage({
+                                        url: mediaUrl,
+                                        fileName: mediaUrl.split('/').pop().split('?')[0] || defaultName
                                     });
-                                    console.log('✅ Message sent successfully');
+                                    console.log('✅ Message sent successfully to', handler);
                                 } catch (err) {
                                     console.error('❌ Error sending message:', err);
                                 }
@@ -312,7 +452,14 @@ class BrowserViewModel: NSObject, ObservableObject {
         // Message handlerを追加（WebView作成後に追加）
         webView.configuration.userContentController.add(self, name: "videoDownload")
         webView.configuration.userContentController.add(self, name: "imageLongPress")
+        webView.configuration.userContentController.add(self, name: "videoDetected")
+        webView.configuration.userContentController.add(self, name: "videoStopped")
+        webView.configuration.userContentController.add(self, name: "videoClicked")
         webView.navigationDelegate = self
+        webView.uiDelegate = self
+
+        // ビデオインターセプターを初期化
+        _ = VideoInterceptor.shared
 
         // WebViewの状態を監視
         webView.publisher(for: \.canGoBack)
@@ -323,6 +470,14 @@ class BrowserViewModel: NSObject, ObservableObject {
 
         webView.publisher(for: \.isLoading)
             .assign(to: &$isLoading)
+
+        // ページ読み込み進捗を監視
+        progressObserver = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] _, change in
+            DispatchQueue.main.async {
+                self?.loadingProgress = change.newValue ?? 0.0
+            }
+        }
+
         // ダウンロードプログレス通知を受信
         NotificationCenter.default.addObserver(forName: NSNotification.Name("DownloadProgress"), object: nil, queue: .main) { [weak self] notification in
             if let progress = notification.object as? Float {
@@ -343,6 +498,7 @@ class BrowserViewModel: NSObject, ObservableObject {
         // Message handlerを削除してメモリリークを防ぐ
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDownload")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "imageLongPress")
+        progressObserver?.invalidate()
     }
 
     func loadURL(_ urlString: String) {
@@ -395,16 +551,269 @@ class BrowserViewModel: NSObject, ObservableObject {
             }
         }
     }
+
+    // MARK: - ページ内検索
+    func searchInPage(_ text: String) {
+        guard !text.isEmpty else {
+            clearSearch()
+            return
+        }
+
+        let configuration = WKFindConfiguration()
+        configuration.caseSensitive = false
+        configuration.wraps = true
+        currentFindConfiguration = configuration
+
+        webView.find(text, configuration: configuration) { [weak self] result in
+            DispatchQueue.main.async {
+                if result.matchFound {
+                    // JavaScriptでマッチ数を取得
+                    self?.countMatches(text: text)
+                    print("🔍 検索結果: \(text) が見つかりました")
+                } else {
+                    self?.searchMatchCount = 0
+                    self?.currentSearchMatch = 0
+                    print("🔍 検索結果: \(text) が見つかりませんでした")
+                }
+            }
+        }
+    }
+
+    private func countMatches(text: String) {
+        let script = """
+        var count = 0;
+        var selection = window.getSelection();
+        var searchText = '\(text.replacingOccurrences(of: "'", with: "\\'"))';
+        var bodyText = document.body.innerText || document.body.textContent;
+        var regex = new RegExp(searchText, 'gi');
+        var matches = bodyText.match(regex);
+        matches ? matches.length : 0;
+        """
+
+        webView.evaluateJavaScript(script) { [weak self] result, error in
+            if let count = result as? Int {
+                DispatchQueue.main.async {
+                    self?.searchMatchCount = count
+                    self?.currentSearchMatch = count > 0 ? 1 : 0
+                }
+            }
+        }
+    }
+
+    func findNext() {
+        webView.evaluateJavaScript("window.find(null, false, false, true, false, true, false)") { [weak self] _, _ in
+            DispatchQueue.main.async {
+                if let current = self?.currentSearchMatch, let total = self?.searchMatchCount {
+                    self?.currentSearchMatch = current < total ? current + 1 : 1
+                }
+            }
+        }
+    }
+
+    func findPrevious() {
+        webView.evaluateJavaScript("window.find(null, false, true, true, false, true, false)") { [weak self] _, _ in
+            DispatchQueue.main.async {
+                if let current = self?.currentSearchMatch {
+                    self?.currentSearchMatch = current > 1 ? current - 1 : (self?.searchMatchCount ?? 1)
+                }
+            }
+        }
+    }
+
+    func clearSearch() {
+        searchMatchCount = 0
+        currentSearchMatch = 0
+        currentFindConfiguration = nil
+        // 検索ハイライトをクリア
+        webView.evaluateJavaScript("window.getSelection().removeAllRanges()")
+    }
+
+    // MARK: - リーダーモード
+    func toggleReaderMode() {
+        if isReaderMode {
+            // リーダーモード解除
+            exitReaderMode()
+        } else {
+            // リーダーモード有効化
+            enterReaderMode()
+        }
+    }
+
+    private func enterReaderMode() {
+        // ページの本文を抽出するJavaScript
+        let script = """
+        (function() {
+            // タイトル取得
+            let title = document.title || document.querySelector('h1')?.textContent || '';
+
+            // メインコンテンツ抽出（複数の方法を試す）
+            let content = '';
+
+            // article タグを優先
+            let article = document.querySelector('article');
+            if (article) {
+                content = article.innerHTML;
+            } else {
+                // main タグを試す
+                let main = document.querySelector('main');
+                if (main) {
+                    content = main.innerHTML;
+                } else {
+                    // role="main" を試す
+                    let roleMain = document.querySelector('[role="main"]');
+                    if (roleMain) {
+                        content = roleMain.innerHTML;
+                    } else {
+                        // 最後の手段：p タグを集める
+                        let paragraphs = document.querySelectorAll('p');
+                        if (paragraphs.length > 0) {
+                            content = Array.from(paragraphs).map(p => p.outerHTML).join('');
+                        }
+                    }
+                }
+            }
+
+            // 不要な要素を削除
+            let tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            tempDiv.querySelectorAll('script, style, nav, aside, footer, header, .ad, .advertisement, .social-share').forEach(el => el.remove());
+
+            return {
+                title: title,
+                content: tempDiv.innerHTML
+            };
+        })();
+        """
+
+        webView.evaluateJavaScript(script) { [weak self] result, error in
+            if let error = error {
+                print("❌ リーダーモード取得エラー: \(error)")
+                return
+            }
+
+            if let dict = result as? [String: String],
+               let title = dict["title"],
+               let content = dict["content"] {
+                DispatchQueue.main.async {
+                    self?.readerContent = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                            body {
+                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                line-height: 1.8;
+                                max-width: 700px;
+                                margin: 0 auto;
+                                padding: 20px;
+                                background: #f9f9f9;
+                                color: #333;
+                            }
+                            h1 {
+                                font-size: 28px;
+                                margin-bottom: 20px;
+                                color: #000;
+                            }
+                            p {
+                                font-size: 18px;
+                                margin-bottom: 16px;
+                            }
+                            img {
+                                max-width: 100%;
+                                height: auto;
+                                border-radius: 8px;
+                                margin: 20px 0;
+                            }
+                            a {
+                                color: #007AFF;
+                                text-decoration: none;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>\(title)</h1>
+                        \(content)
+                    </body>
+                    </html>
+                    """
+                    self?.isReaderMode = true
+                    print("✅ リーダーモード有効化")
+                }
+            }
+        }
+    }
+
+    private func exitReaderMode() {
+        isReaderMode = false
+        readerContent = ""
+        print("✅ リーダーモード解除")
+    }
+
+    // MARK: - デスクトップサイト表示
+    func toggleDesktopMode() {
+        isDesktopMode.toggle()
+
+        // User-Agentを変更
+        let desktopUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        let mobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+        webView.customUserAgent = isDesktopMode ? desktopUA : mobileUA
+
+        // ページをリロード
+        webView.reload()
+
+        print("✅ デスクトップモード: \(isDesktopMode ? "有効" : "無効")")
+    }
 }
 
 // MARK: - WKNavigationDelegate
 extension BrowserViewModel: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        currentURL = webView.url?.absoluteString ?? ""
+        DispatchQueue.main.async {
+            self.currentURL = webView.url?.absoluteString ?? ""
+            self.isLoading = false
+
+            // 閲覧履歴に追加
+            if let url = webView.url?.absoluteString,
+               !url.isEmpty,
+               !url.hasPrefix("about:"),
+               !url.hasPrefix("file:") {
+                let title = webView.title ?? url
+                BrowsingHistoryManager.shared.addToHistory(url: url, title: title)
+            }
+        }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         print("Navigation failed: \(error.localizedDescription)")
+        DispatchQueue.main.async {
+            self.loadError = error
+            self.showErrorAlert = true
+            self.isLoading = false
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        print("Provisional navigation failed: \(error.localizedDescription)")
+        DispatchQueue.main.async {
+            self.loadError = error
+            self.showErrorAlert = true
+            self.isLoading = false
+        }
+    }
+
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        DispatchQueue.main.async {
+            self.isLoading = true
+            self.loadError = nil
+        }
+    }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        DispatchQueue.main.async {
+            self.isLoading = true
+        }
     }
 
     // メディア検出時（自動ダウンロードは行わない）
@@ -413,11 +822,30 @@ extension BrowserViewModel: WKNavigationDelegate {
         if let url = navigationAction.request.url,
            isMediaFile(url: url) {
 
+            print("🎬 動画ファイルへのナビゲーション検出: \(url.lastPathComponent)")
+
             // メディアURLを保存してボタン表示
             DispatchQueue.main.async {
                 self.detectedMediaURL = url
                 self.detectedMediaFileName = url.lastPathComponent
+
+                // カスタムプレーヤーを直接起動
+                print("🎬 カスタムプレーヤーを起動: \(url.lastPathComponent)")
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowCustomVideoPlayer"),
+                    object: nil,
+                    userInfo: [
+                        "url": url,
+                        "fileName": url.lastPathComponent,
+                        "isDownloaded": false
+                    ]
+                )
             }
+
+            // 標準プレーヤーでの再生をキャンセル
+            print("✅ 標準ナビゲーションをキャンセル")
+            decisionHandler(.cancel)
+            return
         }
 
         decisionHandler(.allow)
@@ -433,15 +861,73 @@ extension BrowserViewModel: WKNavigationDelegate {
 // MARK: - WKScriptMessageHandler
 extension BrowserViewModel: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "videoDownload",
+        if message.name == "videoDetected",
            let dict = message.body as? [String: String],
            let urlString = dict["url"],
            let url = URL(string: urlString),
            let fileName = dict["fileName"] {
 
             DispatchQueue.main.async {
-                print("🎬 動画ダウンロード開始: \(fileName)")
-                self.downloadFile(from: url, fileName: fileName)
+                // URLが変わった時だけログ出力
+                if self.currentVideoURL?.absoluteString != urlString {
+                    print("🎬 動画検出: \(fileName) - URL: \(urlString)")
+                }
+
+                // videoStoppedタイマーをキャンセル（動画が再検出された）
+                self.videoStoppedTimer?.invalidate()
+                self.videoStoppedTimer = nil
+
+                self.hasVideo = true
+                self.currentVideoURL = url
+                self.detectedMediaFileName = fileName
+            }
+        } else if message.name == "videoStopped" {
+            // videoStoppedは頻繁に発火するので、2秒遅延させて安定化
+            DispatchQueue.main.async {
+                // 既存のタイマーをキャンセル
+                self.videoStoppedTimer?.invalidate()
+
+                // 2秒後にhasVideoをfalseにする
+                self.videoStoppedTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+                    print("⏸️ 動画停止（2秒後）")
+                    self?.hasVideo = false
+                    self?.currentVideoURL = nil
+                    self?.videoStoppedTimer = nil
+                }
+            }
+        } else if message.name == "videoClicked",
+           let dict = message.body as? [String: String],
+           let urlString = dict["url"],
+           let url = URL(string: urlString),
+           let fileName = dict["fileName"] {
+
+            DispatchQueue.main.async {
+                print("🎬 動画クリック検出: \(fileName)")
+                // カスタムプレーヤーを直接表示
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowCustomVideoPlayer"),
+                    object: nil,
+                    userInfo: [
+                        "url": url,
+                        "fileName": fileName,
+                        "isDownloaded": false
+                    ]
+                )
+            }
+        } else if message.name == "videoDownload",
+           let dict = message.body as? [String: String],
+           let urlString = dict["url"],
+           let url = URL(string: urlString),
+           let fileName = dict["fileName"] {
+
+            DispatchQueue.main.async {
+                print("🎬 動画長押し検出: \(fileName)")
+                // メニューを表示するための通知
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowMediaMenu"),
+                    object: nil,
+                    userInfo: ["url": url, "fileName": fileName, "type": "video"]
+                )
             }
         } else if message.name == "imageLongPress",
                   let dict = message.body as? [String: String],
@@ -451,45 +937,72 @@ extension BrowserViewModel: WKScriptMessageHandler {
 
             DispatchQueue.main.async {
                 print("🖼️ 画像長押し検出: \(fileName)")
-                // ダウンロード確認アラートを表示
-                self.showImageDownloadAlert(url: url, fileName: fileName)
+                // メニューを表示するための通知
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowMediaMenu"),
+                    object: nil,
+                    userInfo: ["url": url, "fileName": fileName, "type": "image"]
+                )
             }
         }
     }
+}
 
-    private func showImageDownloadAlert(url: URL, fileName: String) {
-        // UIAlertControllerを使用してダウンロード確認
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first,
-              let rootViewController = window.rootViewController else {
-            // アラート表示できない場合は直接ダウンロード
-            self.downloadFile(from: url, fileName: fileName)
-            return
+// MARK: - WKUIDelegate
+extension BrowserViewModel: WKUIDelegate {
+    // 動画のフルスクリーン再生要求を横取り
+    @available(iOS 15.0, *)
+    func webView(
+        _ webView: WKWebView,
+        contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo,
+        completionHandler: @escaping (UIContextMenuConfiguration?) -> Void
+    ) {
+        // 動画要素の場合、カスタムメニューを表示
+        if let url = elementInfo.linkURL, isVideoURL(url) {
+            let config = UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+                let downloadAction = UIAction(title: "動画をダウンロード", image: UIImage(systemName: "arrow.down.circle")) { _ in
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ShowVideoDownloadPrompt"),
+                        object: nil,
+                        userInfo: ["url": url, "fileName": url.lastPathComponent]
+                    )
+                }
+                return UIMenu(title: "", children: [downloadAction])
+            }
+            completionHandler(config)
+        } else {
+            completionHandler(nil)
+        }
+    }
+
+    // フルスクリーン再生の開始を防止
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        // 新しいウィンドウでの動画再生を防止
+        print("🚫 新しいウィンドウ作成をブロック")
+
+        // 動画URLの場合はカスタムプレーヤーを表示
+        if let url = navigationAction.request.url, isVideoURL(url) {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ShowCustomVideoPlayer"),
+                object: nil,
+                userInfo: [
+                    "url": url,
+                    "fileName": url.lastPathComponent,
+                    "isDownloaded": false
+                ]
+            )
         }
 
-        let alert = UIAlertController(
-            title: "画像をダウンロード",
-            message: fileName,
-            preferredStyle: .actionSheet
-        )
+        return nil
+    }
 
-        alert.addAction(UIAlertAction(title: "ダウンロード", style: .default) { _ in
-            self.downloadFile(from: url, fileName: fileName)
-        })
-
-        alert.addAction(UIAlertAction(title: "URLをコピー", style: .default) { _ in
-            UIPasteboard.general.string = url.absoluteString
-        })
-
-        alert.addAction(UIAlertAction(title: "キャンセル", style: .cancel))
-
-        // iPadの場合はpopoverを設定
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = window
-            popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-
-        rootViewController.present(alert, animated: true)
+    private func isVideoURL(_ url: URL) -> Bool {
+        let videoExtensions = ["mp4", "mov", "avi", "mkv", "webm", "m3u8"]
+        return videoExtensions.contains(url.pathExtension.lowercased())
     }
 }

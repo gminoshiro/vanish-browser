@@ -11,9 +11,13 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var autoDeleteService = AutoDeleteService.shared
     @AppStorage("searchEngine") private var searchEngine: String = SearchEngine.google.rawValue
+    @AppStorage("authEnabled") private var authEnabled: Bool = false
     @AppStorage("useBiometric") private var useBiometric: Bool = true
     @AppStorage("authPassword") private var authPassword: String = ""
     @State private var showDeleteConfirmation = false
+    @State private var storageUsage: (totalBytes: Int64, fileCount: Int) = (0, 0)
+    @State private var availableStorage: Int64? = nil
+    @State private var passwordInput: String = ""
 
     var selectedSearchEngine: SearchEngine {
         SearchEngine(rawValue: searchEngine) ?? .google
@@ -24,19 +28,69 @@ struct SettingsView: View {
             List {
 
                 // 認証設定
-                Section(header: Text("認証"), footer: Text("生体認証が利用できない場合、パスワード認証にフォールバックします。")) {
-                    Toggle("生体認証を使用", isOn: $useBiometric)
+                Section(header: Text("認証"), footer: Text(authEnabled ? (useBiometric ? "生体認証が利用できない場合、パスワード認証にフォールバックします。" : "4〜8桁の数字を入力してください。") : "アプリ起動時の認証を有効にできます。")) {
+                    Toggle("認証を使用", isOn: $authEnabled)
 
-                    SecureField("パスワード（任意）", text: $authPassword)
-                        .textFieldStyle(.roundedBorder)
+                    if authEnabled {
+                        Toggle("生体認証を使用", isOn: $useBiometric)
+                            .disabled(false)
 
-                    if !authPassword.isEmpty {
-                        Button("パスワードをクリア") {
-                            authPassword = ""
+                        if !useBiometric {
+                            TextField("パスワード（4〜8桁の数字）", text: $passwordInput)
+                                .keyboardType(.numberPad)
+                                .textFieldStyle(.roundedBorder)
+                                .onChange(of: passwordInput) { _, newValue in
+                                    // 数字のみ、8桁まで制限
+                                    let filtered = newValue.filter { $0.isNumber }
+                                    if filtered.count <= 8 {
+                                        passwordInput = filtered
+                                        authPassword = filtered
+                                    } else {
+                                        passwordInput = String(filtered.prefix(8))
+                                        authPassword = String(filtered.prefix(8))
+                                    }
+                                }
+
+                            if !authPassword.isEmpty {
+                                Text("設定されたパスワード: \(authPassword.count)桁")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+
+                                Button("パスワードをクリア") {
+                                    authPassword = ""
+                                    passwordInput = ""
+                                }
+                                .foregroundColor(.red)
+                            }
                         }
-                        .foregroundColor(.red)
                     }
                 }
+                // ストレージ情報
+                Section(header: Text("ストレージ")) {
+                    HStack {
+                        Text("ダウンロード済みファイル")
+                        Spacer()
+                        Text("\(storageUsage.fileCount)件")
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Text("使用容量")
+                        Spacer()
+                        Text(formatBytes(storageUsage.totalBytes))
+                            .foregroundColor(.secondary)
+                    }
+
+                    if let available = availableStorage {
+                        HStack {
+                            Text("デバイス空き容量")
+                            Spacer()
+                            Text(formatBytes(available))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
                 // 検索エンジン設定
                 Section(header: Text("検索エンジン")) {
                     Picker("検索エンジン", selection: $searchEngine) {
@@ -107,11 +161,28 @@ struct SettingsView: View {
                 Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
                     autoDeleteService.deleteAllData()
+                    loadStorageInfo() // 削除後に再読み込み
                 }
             } message: {
                 Text("閲覧履歴、ダウンロードファイル、ブックマークがすべて削除されます。この操作は取り消せません。")
             }
+            .onAppear {
+                loadStorageInfo()
+                passwordInput = authPassword // パスワード入力欄を初期化
+            }
         }
+    }
+
+    private func loadStorageInfo() {
+        storageUsage = DownloadService.shared.calculateStorageUsage()
+        availableStorage = DownloadService.shared.getAvailableStorage()
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
 }
 
