@@ -16,60 +16,73 @@ struct AuthenticationView: View {
     @AppStorage("useBiometric") private var useBiometric: Bool = true
 
     var body: some View {
-        VStack(spacing: 30) {
-            Image(systemName: "lock.shield")
-                .font(.system(size: 80))
-                .foregroundColor(.blue)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // 上部: アイコンとタイトル
+                VStack(spacing: 30) {
+                    Spacer()
 
-            Text("Vanish Browser")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                    Image(systemName: "lock.shield")
+                        .font(.system(size: 80))
+                        .foregroundColor(.blue)
 
-            if useBiometric && BiometricAuthService.shared.canUseBiometrics() {
-                Text("\(BiometricAuthService.shared.biometricType())で認証")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
-                Text("パスワードを入力")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    Text("Vanish Browser")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
 
-                TextField("パスワード（数字）", text: $password)
-                    .keyboardType(.numberPad)
-                    .textFieldStyle(.roundedBorder)
-                    .padding(.horizontal, 40)
-                    .multilineTextAlignment(.center)
-                    .font(.title2)
-                    .onChange(of: password) { _, newValue in
-                        // 数字のみ、8桁まで制限
-                        let filtered = newValue.filter { $0.isNumber }
-                        if filtered.count <= 8 {
-                            password = filtered
-                        } else {
-                            password = String(filtered.prefix(8))
-                        }
+                    if useBiometric && BiometricAuthService.shared.canUseBiometrics() {
+                        Text("\(BiometricAuthService.shared.biometricType())で認証")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
 
-                Button("認証する") {
-                    authenticateWithPassword()
+                    Spacer()
                 }
-                .font(.headline)
-                .foregroundColor(.white)
-                .padding()
-                .frame(maxWidth: 200)
-                .background(Color.blue)
-                .cornerRadius(10)
-            }
+                .frame(height: geometry.size.height * 0.5)
 
-            if let error = authError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-                    .padding()
+                // 下部: パスワード入力欄とボタン
+                if !useBiometric || !BiometricAuthService.shared.canUseBiometrics() {
+                    VStack(spacing: 20) {
+                        Text("パスワードを入力")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        SecureField("パスワード", text: $password)
+                            .textFieldStyle(.roundedBorder)
+                            .padding(.horizontal, 40)
+                            .multilineTextAlignment(.center)
+                            .font(.title2)
+                            .textContentType(.password)
+                            .autocapitalization(.none)
+                            .onSubmit {
+                                authenticateWithPassword()
+                            }
+
+                        Button("認証する") {
+                            authenticateWithPassword()
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(maxWidth: 200)
+                        .background(Color.blue)
+                        .cornerRadius(10)
+
+                        if let error = authError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                        }
+                    }
+                    .padding(.bottom, 40)
+                }
+
+                Spacer()
             }
         }
-        .padding()
+        .ignoresSafeArea(.keyboard)
         .onAppear {
             // 認証が無効なら自動的に通過
             if !authEnabled {

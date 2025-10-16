@@ -45,6 +45,7 @@ struct BrowserView: View {
     @State private var pendingBookmarkTitle = ""
     @State private var pendingBookmarkURL = ""
     @State private var selectedBookmarkFolder = ""
+    @State private var showAutoDeleteSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -283,6 +284,14 @@ struct BrowserView: View {
                         .frame(minWidth: 40, minHeight: 40)
                 }
 
+                Button(action: {
+                    showAutoDeleteSettings = true
+                }) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                        .frame(minWidth: 40, minHeight: 40)
+                }
+
                 Menu {
                     Button(action: {
                         showPageSearch.toggle()
@@ -386,6 +395,9 @@ struct BrowserView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showAutoDeleteSettings) {
+            AutoDeleteSettingsView()
         }
         .sheet(isPresented: $showCookieManager) {
             CookieManagerView()
@@ -589,6 +601,21 @@ struct BrowserView: View {
                 }
             }
 
+            // HLSダウンロード開始通知を受信（CustomVideoPlayerViewから）
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("StartHLSDownload"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let userInfo = notification.userInfo,
+                   let quality = userInfo["quality"] as? HLSQuality,
+                   let format = userInfo["format"] as? DownloadFormat,
+                   let fileName = userInfo["fileName"] as? String,
+                   let folder = userInfo["folder"] as? String {
+                    handleHLSDownload(quality: quality, format: format, fileName: fileName, folder: folder)
+                }
+            }
+
             // カスタムビデオプレーヤー表示通知を受信
             NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("ShowCustomVideoPlayer"),
@@ -601,6 +628,19 @@ struct BrowserView: View {
                     customVideoURL = url
                     customVideoFileName = fileName
                     showCustomVideoPlayer = true
+                }
+            }
+
+            // 外部URLを開く通知を受信（デフォルトブラウザ機能）
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("OpenExternalURL"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let userInfo = notification.userInfo,
+                   let urlString = userInfo["url"] as? String {
+                    print("🌐 外部URLを開く: \(urlString)")
+                    viewModel.loadURL(urlString)
                 }
             }
         }
@@ -674,34 +714,63 @@ struct BrowserView: View {
         print("✅ ダウンロード開始: \(folder)/\(fileName)")
     }
 
-    private func handleHLSDownload(quality: HLSQuality, fileName: String, folder: String) {
+    private func handleHLSDownload(quality: HLSQuality, format: DownloadFormat, fileName: String, folder: String) {
         Task {
             let hlsDownloader = HLSDownloader()
             do {
-                let m3u8File = try await hlsDownloader.downloadHLS(
-                    quality: quality,
-                    fileName: fileName,
-                    folder: folder
-                )
-                print("✅ HLSダウンロード完了: \(m3u8File.path)")
+                if format == .mp4 {
+                    // MP4形式でダウンロード
+                    let mp4File = try await hlsDownloader.downloadHLSAsMP4(
+                        quality: quality,
+                        fileName: fileName,
+                        folder: folder
+                    )
+                    print("✅ HLS→MP4変換完了: \(mp4File.path)")
 
-                // 合計ファイルサイズを計算（フォルダ内の全ファイル）
-                let folderPath = m3u8File.deletingLastPathComponent()
-                let totalSize = try calculateFolderSize(at: folderPath)
+                    // ファイルサイズを取得
+                    let fileSize = (try? FileManager.default.attributesOfItem(atPath: mp4File.path)[.size] as? Int64) ?? 0
 
-                // m3u8ファイルのパスを保存（相対パスとして）
-                DownloadService.shared.saveDownloadedFile(
-                    fileName: fileName.replacingOccurrences(of: ".m3u8", with: ""),
-                    filePath: m3u8File.path,
-                    fileSize: totalSize,
-                    mimeType: "application/x-mpegURL",
-                    folder: folder
-                )
+                    // DownloadServiceに登録
+                    DownloadService.shared.saveDownloadedFile(
+                        fileName: mp4File.lastPathComponent,
+                        filePath: mp4File.path,
+                        fileSize: fileSize,
+                        mimeType: "video/mp4",
+                        folder: folder
+                    )
 
-                await MainActor.run {
-                    downloadedFileName = fileName.replacingOccurrences(of: ".m3u8", with: "")
-                    downloadedFileSize = totalSize
-                    showDownloadCompleted = true
+                    await MainActor.run {
+                        downloadedFileName = mp4File.lastPathComponent
+                        downloadedFileSize = fileSize
+                        showDownloadCompleted = true
+                    }
+                } else {
+                    // m3u8形式でダウンロード
+                    let m3u8File = try await hlsDownloader.downloadHLS(
+                        quality: quality,
+                        fileName: fileName,
+                        folder: folder
+                    )
+                    print("✅ HLSダウンロード完了: \(m3u8File.path)")
+
+                    // 合計ファイルサイズを計算（フォルダ内の全ファイル）
+                    let folderPath = m3u8File.deletingLastPathComponent()
+                    let totalSize = try calculateFolderSize(at: folderPath)
+
+                    // m3u8ファイルのパスを保存（相対パスとして）
+                    DownloadService.shared.saveDownloadedFile(
+                        fileName: fileName.replacingOccurrences(of: ".m3u8", with: ""),
+                        filePath: m3u8File.path,
+                        fileSize: totalSize,
+                        mimeType: "application/x-mpegURL",
+                        folder: folder
+                    )
+
+                    await MainActor.run {
+                        downloadedFileName = fileName.replacingOccurrences(of: ".m3u8", with: "")
+                        downloadedFileSize = totalSize
+                        showDownloadCompleted = true
+                    }
                 }
             } catch {
                 print("❌ HLSダウンロードエラー: \(error)")

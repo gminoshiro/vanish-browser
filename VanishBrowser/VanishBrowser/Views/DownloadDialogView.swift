@@ -18,7 +18,7 @@ struct DownloadDialogView: View {
 
     let videoURL: URL
     let onDownload: (String, String) -> Void  // fileName, folder
-    let onHLSDownload: (HLSQuality, String, String) -> Void  // quality, fileName, folder
+    let onHLSDownload: (HLSQuality, DownloadFormat, String, String) -> Void  // quality, format, fileName, folder
 
     var body: some View {
         NavigationView {
@@ -106,8 +106,8 @@ struct DownloadDialogView: View {
                 QualitySelectionView(
                     qualities: hlsQualities,
                     fileName: fileName,
-                    onSelect: { quality in
-                        onHLSDownload(quality, fileName, selectedFolder)
+                    onSelect: { quality, format in
+                        onHLSDownload(quality, format, fileName, selectedFolder)
                         dismiss()
                     }
                 )

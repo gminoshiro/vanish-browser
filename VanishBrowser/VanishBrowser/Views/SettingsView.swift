@@ -26,9 +26,24 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
+                // デフォルトブラウザ設定
+                Section(header: Text("デフォルトブラウザ"), footer: Text("Vanish Browserをデフォルトブラウザに設定すると、他のアプリでリンクをタップしたときにこのブラウザで開きます。")) {
+                    Button(action: {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        HStack {
+                            Text("デフォルトブラウザに設定")
+                            Spacer()
+                            Image(systemName: "arrow.up.forward.app")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                }
 
                 // 認証設定
-                Section(header: Text("認証"), footer: Text(authEnabled ? (useBiometric ? "生体認証が利用できない場合、パスワード認証にフォールバックします。" : "4〜8桁の数字を入力してください。") : "アプリ起動時の認証を有効にできます。")) {
+                Section(header: Text("認証"), footer: Text(authEnabled ? (useBiometric ? "生体認証が利用できない場合、パスワード認証にフォールバックします。" : "任意のパスワードを設定できます。") : "アプリ起動時の認証を有効にできます。")) {
                     Toggle("認証を使用", isOn: $authEnabled)
 
                     if authEnabled {
@@ -36,23 +51,16 @@ struct SettingsView: View {
                             .disabled(false)
 
                         if !useBiometric {
-                            TextField("パスワード（4〜8桁の数字）", text: $passwordInput)
-                                .keyboardType(.numberPad)
+                            SecureField("パスワード", text: $passwordInput)
                                 .textFieldStyle(.roundedBorder)
+                                .textContentType(.password)
+                                .autocapitalization(.none)
                                 .onChange(of: passwordInput) { _, newValue in
-                                    // 数字のみ、8桁まで制限
-                                    let filtered = newValue.filter { $0.isNumber }
-                                    if filtered.count <= 8 {
-                                        passwordInput = filtered
-                                        authPassword = filtered
-                                    } else {
-                                        passwordInput = String(filtered.prefix(8))
-                                        authPassword = String(filtered.prefix(8))
-                                    }
+                                    authPassword = newValue
                                 }
 
                             if !authPassword.isEmpty {
-                                Text("設定されたパスワード: \(authPassword.count)桁")
+                                Text("パスワードが設定されています")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
 
@@ -109,10 +117,6 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
-
-                    if autoDeleteService.autoDeleteMode != .disabled {
-                        Toggle("アプリ終了時に削除", isOn: $autoDeleteService.deleteOnAppClose)
-                    }
                 }
 
                 // 削除対象設定

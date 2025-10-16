@@ -49,13 +49,6 @@ class AutoDeleteService: ObservableObject {
     @Published var autoDeleteMode: AutoDeleteMode {
         didSet {
             UserDefaults.standard.set(autoDeleteMode.rawValue, forKey: "autoDeleteMode")
-            scheduleAutoDelete()
-        }
-    }
-
-    @Published var deleteOnAppClose: Bool {
-        didSet {
-            UserDefaults.standard.set(deleteOnAppClose, forKey: "deleteOnAppClose")
         }
     }
 
@@ -77,8 +70,6 @@ class AutoDeleteService: ObservableObject {
         }
     }
 
-    private var timer: Timer?
-
     private init() {
         // UserDefaultsから設定を読み込み
         if let modeString = UserDefaults.standard.string(forKey: "autoDeleteMode"),
@@ -88,19 +79,23 @@ class AutoDeleteService: ObservableObject {
             self.autoDeleteMode = .disabled
         }
 
-        self.deleteOnAppClose = UserDefaults.standard.bool(forKey: "deleteOnAppClose")
         self.deleteBrowsingHistory = UserDefaults.standard.bool(forKey: "deleteBrowsingHistory")
         self.deleteDownloads = UserDefaults.standard.bool(forKey: "deleteDownloads")
         self.deleteBookmarks = UserDefaults.standard.bool(forKey: "deleteBookmarks")
-
-        // アプリ起動時にタイマーをセット
-        scheduleAutoDelete()
 
         // アプリがバックグラウンドに入る時の処理
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(appWillResignActive),
             name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+
+        // アプリがフォアグラウンドに戻る時の処理
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
             object: nil
         )
 
@@ -115,44 +110,79 @@ class AutoDeleteService: ObservableObject {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        timer?.invalidate()
-    }
-
-    private func scheduleAutoDelete() {
-        // 既存のタイマーをキャンセル
-        timer?.invalidate()
-        timer = nil
-
-        guard let interval = autoDeleteMode.timeInterval else {
-            print("⏰ 自動削除タイマー: 無効")
-            return
-        }
-
-        print("⏰ 自動削除タイマー: \(autoDeleteMode.rawValue)後に削除")
-
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            self?.performAutoDelete()
-        }
     }
 
     @objc private func appWillResignActive() {
-        if deleteOnAppClose {
+        // 最終起動時刻を保存
+        UserDefaults.standard.set(Date(), forKey: "lastActiveDate")
+        print("⏰ 最終起動時刻を保存: \(Date())")
+
+        // アプリ終了時の即座削除
+        if autoDeleteMode == .onAppClose {
             print("📱 アプリがバックグラウンドに移行: 自動削除実行")
             performAutoDelete()
         }
     }
 
+    @objc private func appDidBecomeActive() {
+        // アプリ起動時に経過時間をチェック
+        checkAndDeleteIfNeeded()
+    }
+
     @objc private func appWillTerminate() {
-        if deleteOnAppClose || autoDeleteMode == .onAppClose {
+        if autoDeleteMode == .onAppClose {
             print("📱 アプリ終了: 自動削除実行")
             performAutoDelete()
         }
     }
 
+    private func checkAndDeleteIfNeeded() {
+        // 自動削除が無効な場合はチェックしない
+        guard let interval = autoDeleteMode.timeInterval else {
+            print("⏰ 自動削除: 無効")
+            return
+        }
+
+        // 最終起動時刻を取得
+        guard let lastActiveDate = UserDefaults.standard.object(forKey: "lastActiveDate") as? Date else {
+            print("⏰ 最終起動時刻が未設定")
+            return
+        }
+
+        // 経過時間を計算
+        let elapsed = Date().timeIntervalSince(lastActiveDate)
+        let hours = Int(elapsed) / 3600
+        let minutes = (Int(elapsed) % 3600) / 60
+        print("⏰ 経過時間: \(hours)時間\(minutes)分")
+
+        // 指定時間を超えていたら削除
+        if elapsed >= interval {
+            print("🗑️ 自動削除条件を満たしました: \(Int(interval/3600))時間経過")
+            performAutoDelete()
+            // 削除後、最終起動時刻をリセット
+            UserDefaults.standard.set(Date(), forKey: "lastActiveDate")
+        } else {
+            let remaining = interval - elapsed
+            let remainingHours = Int(remaining) / 3600
+            let remainingMinutes = (Int(remaining) % 3600) / 60
+            print("⏰ 削除まで残り: \(remainingHours)時間\(remainingMinutes)分")
+        }
+    }
+
     func performAutoDelete() {
         print("🗑️ 自動削除開始...")
+        print("📋 削除対象設定:")
+        print("  - 閲覧履歴: \(deleteBrowsingHistory ? "ON" : "OFF")")
+        print("  - ダウンロード: \(deleteDownloads ? "ON" : "OFF")")
+        print("  - ブックマーク: \(deleteBookmarks ? "ON" : "OFF")")
 
         var deletedItems: [String] = []
+
+        // 削除対象がすべてOFFの場合は警告
+        if !deleteBrowsingHistory && !deleteDownloads && !deleteBookmarks {
+            print("⚠️ 削除対象が選択されていません")
+            return
+        }
 
         // ダウンロードファイルを削除
         if deleteDownloads {

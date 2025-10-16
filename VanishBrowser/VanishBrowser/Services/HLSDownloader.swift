@@ -19,6 +19,96 @@ class HLSDownloader: NSObject, ObservableObject {
 
     private var downloadTask: Task<Void, Never>?
 
+    /// HLS動画をMP4形式でダウンロード（AVAssetExportSession使用）
+    func downloadHLSAsMP4(quality: HLSQuality, fileName: String, folder: String) async throws -> URL {
+        print("🎬 HLS→MP4変換ダウンロード開始: \(quality.displayName)")
+
+        isDownloading = true
+        progress = 0.0
+
+        defer {
+            isDownloading = false
+        }
+
+        // AVAssetを作成
+        let asset = AVURLAsset(url: quality.url)
+
+        // エクスポート可能かチェック
+        guard try await asset.load(.isExportable) else {
+            throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "この動画はエクスポートできません"])
+        }
+
+        // 出力先パスを作成
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let downloadsPath = folder.isEmpty ? documentsPath.appendingPathComponent("Downloads") : documentsPath.appendingPathComponent("Downloads").appendingPathComponent(folder)
+
+        try FileManager.default.createDirectory(at: downloadsPath, withIntermediateDirectories: true)
+
+        let videoName = fileName.replacingOccurrences(of: ".m3u8", with: "").replacingOccurrences(of: ".mp4", with: "")
+        let outputPath = downloadsPath.appendingPathComponent("\(videoName).mp4")
+
+        // 既存ファイルを削除
+        if FileManager.default.fileExists(atPath: outputPath.path) {
+            try FileManager.default.removeItem(at: outputPath)
+        }
+
+        print("📂 出力先: \(outputPath.path)")
+
+        // AVAssetExportSessionを作成
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+            throw NSError(domain: "HLSDownloader", code: -2, userInfo: [NSLocalizedDescriptionKey: "エクスポートセッションの作成に失敗しました"])
+        }
+
+        exportSession.outputURL = outputPath
+        exportSession.outputFileType = .mp4
+
+        // 進捗監視タスクを開始
+        let progressTask = Task {
+            while !Task.isCancelled {
+                await MainActor.run {
+                    self.progress = Double(exportSession.progress)
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
+            }
+        }
+
+        // エクスポート実行
+        await exportSession.export()
+
+        // 進捗監視を停止
+        progressTask.cancel()
+
+        // エクスポート結果をチェック
+        switch exportSession.status {
+        case .completed:
+            progress = 1.0
+            print("✅ MP4変換完了: \(outputPath.path)")
+
+            // ファイルサイズを取得
+            if let attributes = try? FileManager.default.attributesOfItem(atPath: outputPath.path),
+               let fileSize = attributes[.size] as? Int64 {
+                downloadedSize = fileSize
+                print("📊 ファイルサイズ: \(fileSize) bytes")
+            }
+
+            return outputPath
+
+        case .failed:
+            if let error = exportSession.error {
+                print("❌ エクスポート失敗: \(error.localizedDescription)")
+                throw error
+            } else {
+                throw NSError(domain: "HLSDownloader", code: -3, userInfo: [NSLocalizedDescriptionKey: "エクスポートに失敗しました"])
+            }
+
+        case .cancelled:
+            throw NSError(domain: "HLSDownloader", code: -4, userInfo: [NSLocalizedDescriptionKey: "エクスポートがキャンセルされました"])
+
+        default:
+            throw NSError(domain: "HLSDownloader", code: -5, userInfo: [NSLocalizedDescriptionKey: "エクスポートが不明な状態で終了しました"])
+        }
+    }
+
     /// HLS動画をローカルm3u8形式でダウンロード
     func downloadHLS(quality: HLSQuality, fileName: String, folder: String) async throws -> URL {
         print("🎬 HLSダウンロード開始: \(quality.displayName)")

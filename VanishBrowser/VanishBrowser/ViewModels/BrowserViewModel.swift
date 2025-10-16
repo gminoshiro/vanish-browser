@@ -144,87 +144,12 @@ class BrowserViewModel: NSObject, ObservableObject {
                         if (video.dataset.vanishDetected) return;
                         video.dataset.vanishDetected = 'true';
 
-                        // 動画の元のURLを保存
-                        const originalSrc = video.src || video.currentSrc;
-                        if (!originalSrc || !originalSrc.startsWith('http')) {
-                            const sources = video.querySelectorAll('source');
-                            if (sources.length > 0 && sources[0].src) {
-                                video.dataset.originalUrl = sources[0].src;
-                            }
-                        } else {
-                            video.dataset.originalUrl = originalSrc;
-                        }
-
-                        // ネイティブコントロールを無効化
-                        video.controls = false;
-                        video.removeAttribute('controls');
-
-                        // Webkit fullscreenボタンを無効化
-                        video.setAttribute('playsinline', 'true');
-                        video.setAttribute('webkit-playsinline', 'true');
-                        video.playsInline = true;
-
-                        // カスタム再生ボタンを作成
-                        const customPlayer = document.createElement('div');
-                        customPlayer.className = 'vanish-custom-player';
-                        const videoRect = video.getBoundingClientRect();
-
-                        // 動画のポスター画像を取得
-                        const posterUrl = video.poster || '';
-
-                        customPlayer.style.cssText = `
-                            position: relative;
-                            width: ${video.offsetWidth || 320}px;
-                            height: ${video.offsetHeight || 180}px;
-                            background: #000 ${posterUrl ? `url('${posterUrl}')` : ''} center/cover no-repeat;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            cursor: pointer;
-                        `;
-
-                        // 再生ボタンアイコン
-                        customPlayer.innerHTML = `
-                            <div style="
-                                width: 80px;
-                                height: 80px;
-                                background: rgba(0, 0, 0, 0.7);
-                                border-radius: 50%;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                            ">
-                                <div style="
-                                    width: 0;
-                                    height: 0;
-                                    border-left: 30px solid white;
-                                    border-top: 20px solid transparent;
-                                    border-bottom: 20px solid transparent;
-                                    margin-left: 8px;
-                                "></div>
-                            </div>
-                        `;
-
-                        // 動画の代わりに挿入
-                        video.parentElement.insertBefore(customPlayer, video);
-
-                        // カスタムプレーヤーのクリックイベント
-                        customPlayer.addEventListener('click', interceptVideoEvent, true);
-                        customPlayer.addEventListener('touchend', interceptVideoEvent, true);
-
-                        // ビデオが読み込まれたら即座に通知
-                        if (video.readyState >= 2) {
-                            notifyVideoDetected(video);
-                        }
-
-                        // 全てのイベントを横取りして確認ダイアログを表示
-                        function interceptVideoEvent(e) {
+                        // 動画クリック時にカスタムプレーヤーを起動
+                        function handleVideoClick(e) {
                             e.preventDefault();
                             e.stopPropagation();
-                            e.stopImmediatePropagation();
 
-                            // 保存したオリジナルURLを取得
-                            let videoUrl = video.dataset.originalUrl || video.src || video.currentSrc;
+                            let videoUrl = video.src || video.currentSrc;
                             if (!videoUrl || !videoUrl.startsWith('http')) {
                                 const sources = video.querySelectorAll('source');
                                 if (sources.length > 0) {
@@ -232,40 +157,51 @@ class BrowserViewModel: NSObject, ObservableObject {
                                 }
                             }
 
-                            console.log('🎬 Video clicked! URL:', videoUrl);
-
                             if (videoUrl && videoUrl.startsWith('http')) {
+                                console.log('🎬 Video clicked:', videoUrl);
                                 if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.videoClicked) {
                                     window.webkit.messageHandlers.videoClicked.postMessage({
                                         url: videoUrl,
                                         fileName: videoUrl.split('/').pop().split('?')[0] || 'video.mp4'
                                     });
-                                    console.log('✅ videoClicked message sent');
                                 }
-                            } else {
-                                console.error('❌ Invalid video URL:', videoUrl);
                             }
-
-                            return false;
                         }
 
-                        // 複数のイベントで横取り
-                        video.addEventListener('click', interceptVideoEvent, true);
-                        video.addEventListener('touchend', interceptVideoEvent, true);
-                        video.addEventListener('mouseup', interceptVideoEvent, true);
+                        // クリック・タッチイベントをインターセプト
+                        video.addEventListener('click', handleVideoClick, true);
+                        video.addEventListener('touchend', handleVideoClick, true);
 
-                        // 再生を強制的に防止
-                        video.addEventListener('play', function(e) {
-                            if (!video.dataset.vanishApproved) {
-                                e.preventDefault();
-                                video.pause();
-                            }
-                        }, true);
-
-                        // 再生開始時に通知
-                        video.addEventListener('play', function() {
+                        // ビデオが読み込まれたら即座に通知
+                        if (video.readyState >= 2) {
                             notifyVideoDetected(video);
-                        });
+                        }
+
+                        // 再生を防止してカスタムプレーヤーを起動
+                        video.addEventListener('play', function(e) {
+                            e.preventDefault();
+                            video.pause();
+
+                            let videoUrl = video.src || video.currentSrc;
+                            if (!videoUrl || !videoUrl.startsWith('http')) {
+                                const sources = video.querySelectorAll('source');
+                                if (sources.length > 0) {
+                                    videoUrl = sources[0].src;
+                                }
+                            }
+
+                            if (videoUrl && videoUrl.startsWith('http')) {
+                                console.log('🎬 Video play intercepted:', videoUrl);
+                                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.videoClicked) {
+                                    window.webkit.messageHandlers.videoClicked.postMessage({
+                                        url: videoUrl,
+                                        fileName: videoUrl.split('/').pop().split('?')[0] || 'video.mp4'
+                                    });
+                                }
+                            }
+
+                            notifyVideoDetected(video);
+                        }, true);
 
                         // loadeddataイベントでも通知
                         video.addEventListener('loadeddata', function() {
@@ -903,14 +839,13 @@ extension BrowserViewModel: WKScriptMessageHandler {
 
             DispatchQueue.main.async {
                 print("🎬 動画クリック検出: \(fileName)")
-                // カスタムプレーヤーを直接表示
+                // カスタムプレーヤーを表示
                 NotificationCenter.default.post(
                     name: NSNotification.Name("ShowCustomVideoPlayer"),
                     object: nil,
                     userInfo: [
                         "url": url,
-                        "fileName": fileName,
-                        "isDownloaded": false
+                        "fileName": fileName
                     ]
                 )
             }

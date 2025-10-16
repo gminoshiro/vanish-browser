@@ -114,6 +114,49 @@ class DownloadManager: NSObject, ObservableObject {
     private func findDownloadTask(for task: URLSessionTask) -> DownloadTask? {
         return activeDownloads.first { $0.task == task }
     }
+
+    private func getFileExtension(from mimeType: String) -> String {
+        switch mimeType.lowercased() {
+        case "image/jpeg", "image/jpg":
+            return "jpg"
+        case "image/png":
+            return "png"
+        case "image/gif":
+            return "gif"
+        case "image/webp":
+            return "webp"
+        case "image/svg+xml":
+            return "svg"
+        case "video/mp4":
+            return "mp4"
+        case "video/quicktime":
+            return "mov"
+        case "video/x-msvideo":
+            return "avi"
+        case "video/webm":
+            return "webm"
+        case "audio/mpeg":
+            return "mp3"
+        case "audio/wav":
+            return "wav"
+        case "audio/ogg":
+            return "ogg"
+        case "application/pdf":
+            return "pdf"
+        case "application/zip":
+            return "zip"
+        case "application/x-rar-compressed":
+            return "rar"
+        case "text/html":
+            return "html"
+        case "text/plain":
+            return "txt"
+        case "application/json":
+            return "json"
+        default:
+            return "dat"
+        }
+    }
 }
 
 // MARK: - URLSessionDownloadDelegate
@@ -122,20 +165,33 @@ extension DownloadManager: URLSessionDownloadDelegate {
         guard let downloadTaskObj = findDownloadTask(for: downloadTask) else { return }
 
         do {
+            // Content-Typeから拡張子を取得
+            var fileName = downloadTaskObj.fileName
+            let fileExtension = (fileName as NSString).pathExtension
+
+            if fileExtension.isEmpty {
+                // 拡張子がない場合、Content-Typeから取得
+                if let mimeType = downloadTask.response?.mimeType {
+                    let ext = getFileExtension(from: mimeType)
+                    fileName = "\(fileName).\(ext)"
+                    print("📝 Content-Typeから拡張子を追加: \(mimeType) → .\(ext)")
+                }
+            }
+
             // フォルダ作成とファイル保存先URL
             let baseURL = DownloadService.shared.getDownloadsDirectory()
             let destinationURL: URL
 
             if downloadTaskObj.folder.isEmpty {
                 // フォルダ未選択：Downloadsディレクトリ直下に保存
-                destinationURL = baseURL.appendingPathComponent(downloadTaskObj.fileName)
+                destinationURL = baseURL.appendingPathComponent(fileName)
             } else {
                 // フォルダ指定あり
                 let folderURL = baseURL.appendingPathComponent(downloadTaskObj.folder, isDirectory: true)
                 if !FileManager.default.fileExists(atPath: folderURL.path) {
                     try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
                 }
-                destinationURL = folderURL.appendingPathComponent(downloadTaskObj.fileName)
+                destinationURL = folderURL.appendingPathComponent(fileName)
             }
             if FileManager.default.fileExists(atPath: destinationURL.path) {
                 try FileManager.default.removeItem(at: destinationURL)
@@ -149,7 +205,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
             // Core Dataに保存
             DispatchQueue.main.async {
                 DownloadService.shared.saveDownloadedFile(
-                    fileName: downloadTaskObj.fileName,
+                    fileName: fileName,
                     filePath: destinationURL.path,
                     fileSize: fileSize,
                     mimeType: nil,
@@ -162,9 +218,9 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 }
 
                 // ダウンロード完了通知を送信
-                self.sendDownloadCompletionNotification(fileName: downloadTaskObj.fileName)
+                self.sendDownloadCompletionNotification(fileName: fileName)
 
-                print("✅ ダウンロード完了: \(downloadTaskObj.fileName)")
+                print("✅ ダウンロード完了: \(fileName)")
             }
         } catch {
             print("❌ ダウンロード保存エラー: \(error)")

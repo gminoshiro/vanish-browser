@@ -24,6 +24,21 @@ struct VanishBrowserApp: App {
     }
 
     private func handleIncomingFile(url: URL) {
+        print("📥 URL受信: \(url)")
+
+        // HTTPまたはHTTPSスキームの場合はブラウザで開く
+        if url.scheme == "http" || url.scheme == "https" {
+            print("🌐 Webページを開く: \(url.absoluteString)")
+            // ブラウザで開くための通知を送信
+            NotificationCenter.default.post(
+                name: NSNotification.Name("OpenExternalURL"),
+                object: nil,
+                userInfo: ["url": url.absoluteString]
+            )
+            return
+        }
+
+        // ファイル共有の処理
         print("📥 ファイル共有を受信: \(url)")
 
         // セキュリティスコープ付きリソースへのアクセス開始

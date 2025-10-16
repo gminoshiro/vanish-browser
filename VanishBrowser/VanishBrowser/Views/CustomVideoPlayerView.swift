@@ -17,6 +17,7 @@ struct CustomVideoPlayerView: View {
     @StateObject private var playerViewModel: VideoPlayerViewModel
     @State private var showControls = true
     @State private var hideControlsTask: Task<Void, Never>?
+    @State private var showDownloadDialog = false
 
     init(videoURL: URL, videoFileName: String, showDownloadButton: Bool = true, isPresented: Binding<Bool>) {
         print("🎬 CustomVideoPlayerView初期化")
@@ -106,16 +107,9 @@ struct CustomVideoPlayerView: View {
                                 Button(action: {
                                     print("📥 DLボタン押下: \(videoFileName)")
                                     print("📥 URL: \(videoURL.absoluteString)")
-                                    // プレーヤーを閉じてからダイアログを表示
-                                    isPresented = false
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                        print("📤 ShowDownloadDialog通知送信")
-                                        NotificationCenter.default.post(
-                                            name: NSNotification.Name("ShowDownloadDialog"),
-                                            object: nil,
-                                            userInfo: ["url": videoURL, "fileName": videoFileName]
-                                        )
-                                    }
+                                    // プレーヤーを閉じずにダイアログを表示
+                                    playerViewModel.pause()
+                                    showDownloadDialog = true
                                 }) {
                                     Image(systemName: "arrow.down.circle.fill")
                                         .font(.system(size: 40))
@@ -208,6 +202,31 @@ struct CustomVideoPlayerView: View {
         }
         .onDisappear {
             playerViewModel.pause()
+        }
+        .sheet(isPresented: $showDownloadDialog) {
+            DownloadDialogView(
+                fileName: .constant(videoFileName),
+                videoURL: videoURL,
+                onDownload: { fileName, folder in
+                    // 通常ダウンロード
+                    DownloadManager.shared.startDownload(url: videoURL, fileName: fileName, folder: folder)
+                    isPresented = false
+                },
+                onHLSDownload: { quality, format, fileName, folder in
+                    // HLSダウンロード
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("StartHLSDownload"),
+                        object: nil,
+                        userInfo: [
+                            "quality": quality,
+                            "format": format,
+                            "fileName": fileName,
+                            "folder": folder
+                        ]
+                    )
+                    isPresented = false
+                }
+            )
         }
     }
 
