@@ -32,16 +32,22 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		42BE106F2E9734B400CE7895 /* VanishBrowser */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = VanishBrowser;
 			sourceTree = "<group>";
 		};
 		42BE10822E9734B700CE7895 /* VanishBrowserTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = VanishBrowserTests;
 			sourceTree = "<group>";
 		};
 		42BE108C2E9734B700CE7895 /* VanishBrowserUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = VanishBrowserUITests;
 			sourceTree = "<group>";
 		};
@@ -112,6 +118,8 @@
 			);
 			name = VanishBrowser;
 			packageProductDependencies = (
+				B3BB08E90FE904E4E1FCB4A7 /* FFmpeg-iOS-Support */,
+				61B7CB38B70D1CAC4834871E /* FFmpeg-iOS */,
 			);
 			productName = VanishBrowser;
 			productReference = 42BE106D2E9734B400CE7895 /* VanishBrowser.app */;
@@ -134,8 +142,6 @@
 				42BE10822E9734B700CE7895 /* VanishBrowserTests */,
 			);
 			name = VanishBrowserTests;
-			packageProductDependencies = (
-			);
 			productName = VanishBrowserTests;
 			productReference = 42BE107F2E9734B700CE7895 /* VanishBrowserTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -157,8 +163,6 @@
 				42BE108C2E9734B700CE7895 /* VanishBrowserUITests */,
 			);
 			name = VanishBrowserUITests;
-			packageProductDependencies = (
-			);
 			productName = VanishBrowserUITests;
 			productReference = 42BE10892E9734B700CE7895 /* VanishBrowserUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -196,6 +200,7 @@
 			mainGroup = 42BE10642E9734B400CE7895;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				42E16B152EA22783004C49D6 /* XCRemoteSwiftPackageReference "FFmpeg-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 42BE106E2E9734B400CE7895 /* Products */;
@@ -572,6 +577,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		42E16B152EA22783004C49D6 /* XCRemoteSwiftPackageReference "FFmpeg-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kewlbear/FFmpeg-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = "0.0.6-b";
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		61B7CB38B70D1CAC4834871E /* FFmpeg-iOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 42E16B152EA22783004C49D6 /* XCRemoteSwiftPackageReference "FFmpeg-iOS" */;
+			productName = "FFmpeg-iOS";
+		};
+		B3BB08E90FE904E4E1FCB4A7 /* FFmpeg-iOS-Support */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 42E16B152EA22783004C49D6 /* XCRemoteSwiftPackageReference "FFmpeg-iOS" */;
+			productName = "FFmpeg-iOS-Support";
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 42BE10652E9734B400CE7895 /* Project object */;
 }

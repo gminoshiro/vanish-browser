@@ -191,6 +191,9 @@ class AutoDeleteService: ObservableObject {
                 DownloadService.shared.deleteFile(file)
             }
             deletedItems.append("ダウンロード(\(files.count)件)")
+
+            // 空のフォルダを削除
+            DownloadService.shared.removeEmptyFolders()
         }
 
         // ブックマークを削除
@@ -223,6 +226,56 @@ class AutoDeleteService: ObservableObject {
             dataStore.removeData(ofTypes: dataTypes, for: records) {
                 print("🧹 ブラウジングデータ削除完了")
             }
+        }
+    }
+
+    // 手動削除（選択された項目のみ）
+    func performManualDelete(history: Bool, downloads: Bool, bookmarks: Bool) {
+        print("🗑️ 手動削除開始...")
+        print("📋 削除対象:")
+        print("  - 閲覧履歴: \(history ? "ON" : "OFF")")
+        print("  - ダウンロード: \(downloads ? "ON" : "OFF")")
+        print("  - ブックマーク: \(bookmarks ? "ON" : "OFF")")
+
+        var deletedItems: [String] = []
+
+        // 削除対象がすべてOFFの場合は警告
+        if !history && !downloads && !bookmarks {
+            print("⚠️ 削除対象が選択されていません")
+            return
+        }
+
+        // ダウンロードファイルを削除
+        if downloads {
+            let files = DownloadService.shared.fetchDownloadedFiles()
+            for file in files {
+                DownloadService.shared.deleteFile(file)
+            }
+            deletedItems.append("ダウンロード(\(files.count)件)")
+
+            // 空のフォルダを削除
+            DownloadService.shared.removeEmptyFolders()
+        }
+
+        // ブックマークを削除
+        if bookmarks {
+            let bookmarks = BookmarkService.shared.fetchBookmarks()
+            for bookmark in bookmarks {
+                BookmarkService.shared.deleteBookmark(bookmark)
+            }
+            deletedItems.append("ブックマーク(\(bookmarks.count)件)")
+        }
+
+        // 閲覧履歴を削除（WebKitのデータストア）
+        if history {
+            clearBrowsingData()
+            deletedItems.append("閲覧履歴")
+        }
+
+        if !deletedItems.isEmpty {
+            print("✅ 削除完了: \(deletedItems.joined(separator: ", "))")
+        } else {
+            print("⚠️ 削除対象なし")
         }
     }
 

@@ -719,8 +719,8 @@ struct BrowserView: View {
             let hlsDownloader = HLSDownloader()
             do {
                 if format == .mp4 {
-                    // MP4形式でダウンロード
-                    let mp4File = try await hlsDownloader.downloadHLSAsMP4(
+                    // MP4形式でダウンロード（TSセグメント結合方式）
+                    let mp4File = try await hlsDownloader.downloadHLS(
                         quality: quality,
                         fileName: fileName,
                         folder: folder

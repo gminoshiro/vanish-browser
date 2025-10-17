@@ -249,6 +249,31 @@ class DownloadService {
         }
     }
 
+    // 空のフォルダを削除
+    func removeEmptyFolders() {
+        do {
+            let downloadsDirURL = downloadsDirectory
+            let contents = try fileManager.contentsOfDirectory(at: downloadsDirURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+
+            for folderURL in contents {
+                // ディレクトリかどうかチェック
+                var isDirectory: ObjCBool = false
+                guard fileManager.fileExists(atPath: folderURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                    continue
+                }
+
+                // フォルダ内のファイル数をチェック
+                let folderContents = try fileManager.contentsOfDirectory(atPath: folderURL.path)
+                if folderContents.isEmpty {
+                    try fileManager.removeItem(at: folderURL)
+                    print("🗑️ 空のフォルダを削除: \(folderURL.lastPathComponent)")
+                }
+            }
+        } catch {
+            print("❌ 空フォルダ削除エラー: \(error)")
+        }
+    }
+
     // ファイルサイズをフォーマット
     func formatFileSize(_ bytes: Int64) -> String {
         let formatter = ByteCountFormatter()

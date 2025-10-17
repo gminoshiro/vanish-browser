@@ -41,7 +41,10 @@ Vanish Browserは「長期放置時の自動削除」機能により、デジタ
 
 ### 依存ライブラリ
 
-**なし** - 標準APIのみで実装（App Store審査通過率向上、メンテナンス性確保）
+- **[FFmpeg-iOS](https://github.com/kewlbear/FFmpeg-iOS)** - HLS→MP4変換用 (GPL/LGPL)
+- **[FFmpeg-iOS-Support](https://github.com/kewlbear/FFmpeg-iOS-Support)** - FFmpeg Swift ラッパー
+
+⚠️ **重要**: FFmpegは GPL/LGPL ライセンスです。詳細は下記「ライセンス」セクション参照
 
 ---
 
@@ -205,6 +208,32 @@ docs/STATUS.mdを確認して、今日実装する機能を提案してくださ
 
 ## 📄 ライセンス
 
+### ⚠️ 重要: FFmpeg使用によるライセンス制約
+
+このアプリケーションは **FFmpeg** を使用しているため、以下のライセンス制約があります。
+
+**FFmpegのライセンス**
+- FFmpegは **GPL (GNU General Public License)** または **LGPL (GNU Lesser General Public License)** でライセンスされています
+- 使用している `FFmpeg-iOS` パッケージには **GPL** コンポーネントが含まれる可能性があります
+
+**このアプリへの影響**
+- ✅ **個人使用・オープンソースプロジェクト**: 問題ありません
+- ⚠️ **App Store配信を予定する場合**:
+  - このアプリも **GPLライセンス** として公開する必要があります
+  - ソースコード全体の公開義務が発生します
+  - または、**LGPL版のみ**でFFmpegを再ビルドする必要があります
+
+**推奨される対応**
+1. このリポジトリをオープンソース（GPLライセンス）として公開する
+2. 商用利用の場合は、LGPL版FFmpegの使用を検討する
+3. App Store審査時に適切なライセンス情報を記載する
+
+詳細な説明は [HLS→MP4変換の実装詳細](docs/02-improvements/BUG-008-hls-to-mp4.md) を参照してください。
+
+---
+
+### アプリケーションコードのライセンス
+
 MIT License
 
 Copyright (c) 2025 Vanish Browser Project
@@ -226,6 +255,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+**注意**: FFmpeg使用により、上記MITライセンスの代わりにGPL準拠が必要になる場合があります。
 
 ---
 

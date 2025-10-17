@@ -168,4 +168,13 @@ class HLSParser {
         print("📊 \(segments.count) セグメントを検出")
         return segments
     }
+
+    /// 元のm3u8コンテンツを取得（ローカル保存用）
+    static func fetchM3U8Content(from url: URL) async throws -> String {
+        let (data, _) = try await URLSession.shared.data(from: url)
+        guard let content = String(data: data, encoding: .utf8) else {
+            throw NSError(domain: "HLSParser", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid m3u8 encoding"])
+        }
+        return content
+    }
 }

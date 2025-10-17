@@ -6,6 +6,7 @@ target 'VanishBrowser' do
   use_frameworks!
 
   # Pods for VanishBrowser
-  pod 'ffmpeg-kit-ios-full', '~> 6.0'
+  # FFmpegKit公式は廃止されたため、コミュニティ版を使用
+  pod 'ffmpeg-kit-ios-full-gpl', '6.0'
 
 end

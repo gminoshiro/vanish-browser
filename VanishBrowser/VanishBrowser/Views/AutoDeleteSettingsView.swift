@@ -10,6 +10,10 @@ import SwiftUI
 struct AutoDeleteSettingsView: View {
     @ObservedObject var autoDeleteService = AutoDeleteService.shared
     @Environment(\.dismiss) var dismiss
+    @State private var showDeleteConfirmation = false
+    @State private var confirmDeleteHistory = false
+    @State private var confirmDeleteDownloads = false
+    @State private var confirmDeleteBookmarks = false
 
     var body: some View {
         NavigationView {
@@ -46,8 +50,14 @@ struct AutoDeleteSettingsView: View {
 
                 Section(header: Text("即座に削除")) {
                     Button(action: {
-                        autoDeleteService.performAutoDelete()
-                        dismiss()
+                        print("🔴 今すぐ削除ボタンが押されました")
+                        // 現在の設定を初期値として確認ダイアログに設定
+                        confirmDeleteHistory = autoDeleteService.deleteBrowsingHistory
+                        confirmDeleteDownloads = autoDeleteService.deleteDownloads
+                        confirmDeleteBookmarks = autoDeleteService.deleteBookmarks
+                        print("🔴 設定: 履歴=\(confirmDeleteHistory), DL=\(confirmDeleteDownloads), BM=\(confirmDeleteBookmarks)")
+                        showDeleteConfirmation = true
+                        print("🔴 showDeleteConfirmation = \(showDeleteConfirmation)")
                     }) {
                         HStack {
                             Image(systemName: "trash.fill")
@@ -67,7 +77,44 @@ struct AutoDeleteSettingsView: View {
                     }
                 }
             }
+            .alert("削除確認", isPresented: $showDeleteConfirmation) {
+                Button("キャンセル", role: .cancel) {}
+                Button("削除", role: .destructive) {
+                    executeDelete()
+                    dismiss()
+                }
+            } message: {
+                Text(getDeleteConfirmationMessage())
+            }
         }
+    }
+
+    private func executeDelete() {
+        autoDeleteService.performManualDelete(
+            history: confirmDeleteHistory,
+            downloads: confirmDeleteDownloads,
+            bookmarks: confirmDeleteBookmarks
+        )
+    }
+
+    private func getDeleteConfirmationMessage() -> String {
+        var items: [String] = []
+
+        if confirmDeleteHistory {
+            items.append("• 閲覧履歴")
+        }
+        if confirmDeleteDownloads {
+            items.append("• ダウンロード")
+        }
+        if confirmDeleteBookmarks {
+            items.append("• ブックマーク")
+        }
+
+        if items.isEmpty {
+            return "削除対象が選択されていません"
+        }
+
+        return "以下の項目を削除します:\n\n" + items.joined(separator: "\n")
     }
 
     private func getRemainingTime(interval: TimeInterval) -> String {

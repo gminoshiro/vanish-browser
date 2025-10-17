@@ -512,7 +512,7 @@ struct DownloadListView: View {
             }
         }
 
-        folders = Array(allFolders).sorted()
+        folders = Array(allFolders).filter { !$0.isEmpty }.sorted()
 
         print("📁 読み込んだフォルダ一覧: \(folders)")
         print("📄 ダウンロード済みファイル数: \(downloads.count)")

@@ -8,8 +8,7 @@
 import SwiftUI
 
 enum DownloadFormat {
-    case m3u8  // ローカルm3u8プレイリスト形式
-    case mp4   // MP4形式（AVAssetExportSession）
+    case mp4   // MP4形式（FFmpeg変換）
 }
 
 struct QualitySelectionView: View {
@@ -22,25 +21,6 @@ struct QualitySelectionView: View {
     var body: some View {
         NavigationView {
             List {
-                // ダウンロード形式選択
-                Section(header: Text("ダウンロード形式")) {
-                    Picker("形式", selection: $selectedFormat) {
-                        Text("MP4形式").tag(DownloadFormat.mp4)
-                        Text("m3u8形式").tag(DownloadFormat.m3u8)
-                    }
-                    .pickerStyle(.segmented)
-
-                    if selectedFormat == .mp4 {
-                        Text("動画を1つのMP4ファイルに変換してダウンロードします。多くのアプリで再生可能です。")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("セグメントファイルとm3u8プレイリストをダウンロードします。HLS対応プレーヤーで再生できます。")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
                 // 品質選択
                 Section(header: Text("品質を選択")) {
                     ForEach(qualities) { quality in
