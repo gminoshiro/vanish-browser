@@ -19,6 +19,7 @@ class HLSDownloader: NSObject, ObservableObject {
     @Published var error: Error?
 
     private var downloadTask: Task<Void, Never>?
+    private var currentTempFolder: URL?
 
     /// HLS動画をMP4形式でダウンロード（AVAssetExportSession使用）
     func downloadHLSAsMP4(quality: HLSQuality, fileName: String, folder: String) async throws -> URL {
@@ -111,19 +112,25 @@ class HLSDownloader: NSObject, ObservableObject {
     }
 
     /// HLS動画をローカルm3u8形式でダウンロード
-    func downloadHLS(quality: HLSQuality, fileName: String, folder: String) async throws -> URL {
+    func downloadHLS(
+        quality: HLSQuality,
+        fileName: String,
+        folder: String,
+        progressHandler: ((Double, Int, Int, Int64) -> Void)? = nil
+    ) async throws -> URL {
         print("🎬 HLSダウンロード開始: \(quality.displayName)")
 
-        isDownloading = true
-        progress = 0.0
-        downloadedSegments = 0
-
-        defer {
-            isDownloading = false
+        await MainActor.run {
+            isDownloading = true
+            progress = 0.0
+            downloadedSegments = 0
         }
 
-        // 元のm3u8コンテンツを取得
-        let originalM3U8Content = try await HLSParser.fetchM3U8Content(from: quality.url)
+        defer {
+            Task { @MainActor in
+                isDownloading = false
+            }
+        }
 
         // セグメントリストを取得
         let segments = try await HLSParser.parseSegments(from: quality.url)
@@ -144,36 +151,104 @@ class HLSDownloader: NSObject, ObservableObject {
 
         // 一時作業用フォルダ（セグメント保存用）
         let hlsFolder = downloadsPath.appendingPathComponent("_temp_\(videoName)_\(UUID().uuidString)")
+        currentTempFolder = hlsFolder
 
         try FileManager.default.createDirectory(at: hlsFolder, withIntermediateDirectories: true)
         print("📁 一時フォルダ作成: \(hlsFolder.path)")
 
         var segmentFiles: [String] = []
 
-        // セグメントを順次ダウンロード
-        for (index, segmentURL) in segments.enumerated() {
-            let (data, _) = try await URLSession.shared.data(from: segmentURL)
+        // セグメントの種類を判定（最初のURLから）
+        let firstSegmentURL = segments.first?.absoluteString ?? ""
+        let isJPEGSequence = firstSegmentURL.hasSuffix(".jpeg") || firstSegmentURL.hasSuffix(".jpg")
+        let fileExtension = isJPEGSequence ? ".jpeg" : ".ts"
 
-            let segmentFileName = "segment_\(String(format: "%04d", index)).ts"
-            let segmentFile = hlsFolder.appendingPathComponent(segmentFileName)
-            try data.write(to: segmentFile)
+        print("📝 検出されたセグメント形式: \(isJPEGSequence ? "JPEG画像シーケンス" : "TSビデオ")")
 
-            segmentFiles.append(segmentFileName)
-            downloadedSegments = index + 1
-            downloadedSize += Int64(data.count)
+        // 並列ダウンロードのためのアクター
+        actor DownloadProgress {
+            var completed: Int = 0
+            var totalSize: Int64 = 0
 
-            // ダウンロード進捗を95%まで
-            progress = Double(index + 1) / Double(segments.count) * 0.95
-
-            if (index + 1) % 10 == 0 || index == segments.count - 1 {
-                print("✅ セグメント \(index + 1)/\(segments.count) 完了")
+            func increment(size: Int64) -> (Int, Int64) {
+                completed += 1
+                totalSize += size
+                return (completed, totalSize)
             }
         }
 
-        print("📝 TSセグメントを結合してMP4を作成中...")
+        let progressActor = DownloadProgress()
+        let concurrentDownloads = 5 // 同時ダウンロード数
 
-        // TSセグメントを結合してMP4を作成（一時フォルダ内）
-        let tempMP4File = try await mergeSegmentsToMP4(segmentNames: segmentFiles, in: hlsFolder, videoName: videoName)
+        // セグメントを並列ダウンロード
+        try await withThrowingTaskGroup(of: (Int, String, Int64).self) { group in
+            var activeDownloads = 0
+            var nextIndex = 0
+
+            // 初期バッチを開始
+            while nextIndex < segments.count && activeDownloads < concurrentDownloads {
+                let index = nextIndex
+                let segmentURL = segments[index]
+                nextIndex += 1
+                activeDownloads += 1
+
+                group.addTask {
+                    let (data, _) = try await URLSession.shared.data(from: segmentURL)
+                    let segmentFileName = "segment_\(String(format: "%04d", index))\(fileExtension)"
+                    let segmentFile = hlsFolder.appendingPathComponent(segmentFileName)
+                    try data.write(to: segmentFile)
+                    return (index, segmentFileName, Int64(data.count))
+                }
+            }
+
+            // 結果を処理し、新しいダウンロードを開始
+            for try await (_, fileName, size) in group {
+                segmentFiles.append(fileName)
+
+                let (currentCount, currentSize) = await progressActor.increment(size: size)
+                let currentProgress = Double(currentCount) / Double(segments.count) * 0.95
+
+                await MainActor.run {
+                    downloadedSegments = currentCount
+                    downloadedSize = currentSize
+                    progress = currentProgress
+                }
+
+                progressHandler?(currentProgress, currentCount, segments.count, currentSize)
+
+                if currentCount % 10 == 0 || currentCount == segments.count {
+                    print("✅ セグメント \(currentCount)/\(segments.count) 完了 (進捗: \(Int(currentProgress * 100))%)")
+                }
+
+                // 次のダウンロードを開始
+                if nextIndex < segments.count {
+                    let index = nextIndex
+                    let segmentURL = segments[index]
+                    nextIndex += 1
+
+                    group.addTask {
+                        let (data, _) = try await URLSession.shared.data(from: segmentURL)
+                        let segmentFileName = "segment_\(String(format: "%04d", index))\(fileExtension)"
+                        let segmentFile = hlsFolder.appendingPathComponent(segmentFileName)
+                        try data.write(to: segmentFile)
+                        return (index, segmentFileName, Int64(data.count))
+                    }
+                }
+            }
+        }
+
+        // ファイル名を順番にソート
+        segmentFiles.sort()
+
+        print("📝 全\(segments.count)セグメントのダウンロード完了。MP4への変換を開始... (形式: \(isJPEGSequence ? "JPEG" : "TS"))")
+
+        // セグメントタイプに応じて変換
+        let tempMP4File: URL
+        if isJPEGSequence {
+            tempMP4File = try await mergeJPEGSequenceToMP4(imageNames: segmentFiles, in: hlsFolder, videoName: videoName)
+        } else {
+            tempMP4File = try await mergeSegmentsToMP4(segmentNames: segmentFiles, in: hlsFolder, videoName: videoName)
+        }
 
         // Downloads直下に最終ファイルを移動
         let finalOutputPath = downloadsPath.appendingPathComponent("\(videoName).mp4")
@@ -283,6 +358,76 @@ class HLSDownloader: NSObject, ObservableObject {
         return outputPath
     }
 
+    /// JPEG画像シーケンスをMP4に変換
+    private func mergeJPEGSequenceToMP4(imageNames: [String], in folder: URL, videoName: String) async throws -> URL {
+        let outputPath = folder.appendingPathComponent("\(videoName).mp4")
+
+        // 既存ファイルを削除
+        if FileManager.default.fileExists(atPath: outputPath.path) {
+            try? FileManager.default.removeItem(at: outputPath)
+        }
+
+        print("🖼️ JPEG画像シーケンスからMP4を作成中...")
+        print("📊 画像数: \(imageNames.count)")
+
+        // FFmpegで画像シーケンスをMP4に変換
+        // -framerate: フレームレート（4秒ごとの画像なので0.25fps）
+        // -i: 入力ファイルパターン
+        // -c:v: ビデオコーデック（libx264）
+        // -pix_fmt: ピクセルフォーマット
+        // -y: 既存ファイルを上書き
+
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                // 画像ファイルのリストを作成
+                let listFile = folder.appendingPathComponent("filelist.txt")
+                var listContent = ""
+                for imageName in imageNames {
+                    let imagePath = folder.appendingPathComponent(imageName)
+                    listContent += "file '\(imagePath.path)'\n"
+                    listContent += "duration 4\n" // 各画像を4秒表示
+                }
+                try? listContent.write(to: listFile, atomically: true, encoding: .utf8)
+
+                print("🎬 FFmpegで画像→MP4変換開始...")
+
+                // ffmpeg -f concat -safe 0 -i filelist.txt -c:v libx264 -pix_fmt yuv420p -r 25 output.mp4
+                let result = ffmpeg([
+                    "ffmpeg",
+                    "-f", "concat",
+                    "-safe", "0",
+                    "-i", listFile.path,
+                    "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p",
+                    "-r", "25", // 出力フレームレート
+                    "-y",
+                    outputPath.path
+                ])
+
+                // リストファイルを削除
+                try? FileManager.default.removeItem(at: listFile)
+
+                // 元の画像ファイルを削除
+                for imageName in imageNames {
+                    let imagePath = folder.appendingPathComponent(imageName)
+                    try? FileManager.default.removeItem(at: imagePath)
+                }
+
+                if result == 0 {
+                    print("✅ JPEG→MP4変換成功")
+                    continuation.resume(returning: outputPath)
+                } else {
+                    print("❌ JPEG→MP4変換失敗: return code \(result)")
+                    continuation.resume(throwing: NSError(
+                        domain: "HLSDownloader",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "JPEG→MP4変換失敗: return code \(result)"]
+                    ))
+                }
+            }
+        }
+    }
+
     /// FFmpegでTS→MP4変換
     private func convertTSToMP4WithFFmpeg(inputURL: URL, outputURL: URL) async throws {
         return try await withCheckedThrowingContinuation { continuation in
@@ -319,7 +464,21 @@ class HLSDownloader: NSObject, ObservableObject {
 
     /// ダウンロードをキャンセル
     func cancel() {
+        print("🛑 ダウンロードキャンセル要求")
         downloadTask?.cancel()
         isDownloading = false
+
+        // 一時フォルダを削除
+        if let tempFolder = currentTempFolder {
+            try? FileManager.default.removeItem(at: tempFolder)
+            print("🗑️ 一時フォルダ削除: \(tempFolder.lastPathComponent)")
+            currentTempFolder = nil
+        }
+
+        // 状態をリセット
+        progress = 0.0
+        downloadedSegments = 0
+        totalSegments = 0
+        downloadedSize = 0
     }
 }

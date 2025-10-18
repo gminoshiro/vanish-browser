@@ -32,13 +32,26 @@ class DownloadTask: ObservableObject, Identifiable {
     var task: URLSessionDownloadTask?
     var resumeData: Data?
 
-    init(url: URL, fileName: String, folder: String) {
+    // HLS専用プロパティ
+    var isHLS: Bool = false
+    var hlsQuality: HLSQuality?
+    @Published var downloadedSegments: Int = 0
+    @Published var totalSegments: Int = 0
+    var hlsTask: Task<Void, Never>?
+
+    init(url: URL, fileName: String, folder: String, isHLS: Bool = false, hlsQuality: HLSQuality? = nil) {
         self.url = url
         self.fileName = fileName
         self.folder = folder
+        self.isHLS = isHLS
+        self.hlsQuality = hlsQuality
     }
 
     var progressText: String {
+        if isHLS && totalSegments > 0 {
+            return "\(downloadedSegments) / \(totalSegments) セグメント"
+        }
+
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file

@@ -100,7 +100,32 @@ class DownloadManager: NSObject, ObservableObject {
     }
 
     func cancelDownload(_ downloadTask: DownloadTask) {
-        downloadTask.task?.cancel()
+        if downloadTask.isHLS {
+            // HLSダウンロードのキャンセル
+            downloadTask.hlsTask?.cancel()
+
+            // 一時フォルダを削除
+            Task {
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let downloadsPath = documentsPath.appendingPathComponent("Downloads")
+
+                // _temp_ で始まるフォルダを探して削除
+                guard let enumerator = FileManager.default.enumerator(at: downloadsPath, includingPropertiesForKeys: [.isDirectoryKey]) else {
+                    return
+                }
+
+                let allFiles = enumerator.allObjects.compactMap { $0 as? URL }
+                for fileURL in allFiles {
+                    if fileURL.lastPathComponent.hasPrefix("_temp_") {
+                        try? FileManager.default.removeItem(at: fileURL)
+                        print("🗑️ 一時フォルダ削除: \(fileURL.lastPathComponent)")
+                    }
+                }
+            }
+        } else {
+            // 通常ダウンロードのキャンセル
+            downloadTask.task?.cancel()
+        }
 
         DispatchQueue.main.async {
             downloadTask.status = .cancelled
@@ -109,6 +134,115 @@ class DownloadManager: NSObject, ObservableObject {
             }
             print("❌ ダウンロードキャンセル: \(downloadTask.fileName)")
         }
+    }
+
+    /// HLSダウンロード開始
+    func startHLSDownload(quality: HLSQuality, fileName: String, folder: String) {
+        let downloadTask = DownloadTask(
+            url: quality.url,
+            fileName: fileName,
+            folder: folder,
+            isHLS: true,
+            hlsQuality: quality
+        )
+
+        DispatchQueue.main.async {
+            self.activeDownloads.append(downloadTask)
+            downloadTask.status = .downloading
+        }
+
+        // HLSDownloaderを使用して非同期ダウンロード
+        downloadTask.hlsTask = Task {
+            do {
+                let hlsDownloader = HLSDownloader()
+
+                let outputURL = try await hlsDownloader.downloadHLS(
+                    quality: quality,
+                    fileName: fileName,
+                    folder: folder
+                ) { progress, downloadedSegments, totalSegments, downloadedBytes in
+                    // プログレスハンドラー - MainActorで実行
+                    Task { @MainActor in
+                        downloadTask.progress = Float(progress)
+                        downloadTask.downloadedSegments = downloadedSegments
+                        downloadTask.totalSegments = totalSegments
+                        downloadTask.downloadedBytes = downloadedBytes
+                    }
+                }
+
+                // ファイルサイズを取得
+                let fileSize = (try? FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? Int64) ?? 0
+
+                // DownloadServiceに登録
+                DownloadService.shared.saveDownloadedFile(
+                    fileName: outputURL.lastPathComponent,
+                    filePath: outputURL.path,
+                    fileSize: fileSize,
+                    mimeType: "video/mp4",
+                    folder: folder
+                )
+
+                await MainActor.run {
+                    downloadTask.status = .completed
+                    downloadTask.progress = 1.0
+                    if let index = self.activeDownloads.firstIndex(where: { $0.id == downloadTask.id }) {
+                        self.activeDownloads.remove(at: index)
+                    }
+                    self.sendDownloadCompletionNotification(fileName: fileName)
+                    print("✅ HLSダウンロード完了: \(outputURL.path)")
+                }
+
+            } catch is CancellationError {
+                // キャンセルされた場合はリストから削除
+                await MainActor.run {
+                    downloadTask.status = .cancelled
+                    if let index = self.activeDownloads.firstIndex(where: { $0.id == downloadTask.id }) {
+                        self.activeDownloads.remove(at: index)
+                    }
+                    print("❌ HLSダウンロードキャンセル: \(downloadTask.fileName)")
+                }
+            } catch let error as NSError {
+                // エラーの場合はリストから削除
+                let errorMessage: String
+                if error.domain == NSURLErrorDomain {
+                    switch error.code {
+                    case NSURLErrorNotConnectedToInternet:
+                        errorMessage = "インターネット接続がありません"
+                    case NSURLErrorTimedOut:
+                        errorMessage = "接続がタイムアウトしました"
+                    case NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost:
+                        errorMessage = "サーバーに接続できません"
+                    case NSURLErrorNetworkConnectionLost:
+                        errorMessage = "ネットワーク接続が切断されました"
+                    default:
+                        errorMessage = "ネットワークエラー: \(error.localizedDescription)"
+                    }
+                } else {
+                    errorMessage = error.localizedDescription
+                }
+
+                await MainActor.run {
+                    downloadTask.status = .failed
+                    downloadTask.error = error
+                    if let index = self.activeDownloads.firstIndex(where: { $0.id == downloadTask.id }) {
+                        self.activeDownloads.remove(at: index)
+                    }
+                    print("❌ HLSダウンロード失敗: \(errorMessage)")
+                }
+            } catch {
+                // その他のエラー
+                await MainActor.run {
+                    downloadTask.status = .failed
+                    downloadTask.error = error
+                    if let index = self.activeDownloads.firstIndex(where: { $0.id == downloadTask.id }) {
+                        self.activeDownloads.remove(at: index)
+                    }
+                    print("❌ HLSダウンロード失敗: \(error.localizedDescription)")
+                }
+            }
+        }
+
+        print("📥 HLSダウンロード開始: \(fileName)")
     }
 
     private func findDownloadTask(for task: URLSessionTask) -> DownloadTask? {

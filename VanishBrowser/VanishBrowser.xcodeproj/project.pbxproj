@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		42E16BE42EA23207004C49D6 /* FFmpeg-iOS-Support in Frameworks */ = {isa = PBXBuildFile; productRef = B3BB08E90FE904E4E1FCB4A7 /* FFmpeg-iOS-Support */; };
+		42E16BE52EA23207004C49D6 /* FFmpeg-iOS in Frameworks */ = {isa = PBXBuildFile; productRef = 61B7CB38B70D1CAC4834871E /* FFmpeg-iOS */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		42BE10802E9734B700CE7895 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -32,22 +37,16 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		42BE106F2E9734B400CE7895 /* VanishBrowser */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = VanishBrowser;
 			sourceTree = "<group>";
 		};
 		42BE10822E9734B700CE7895 /* VanishBrowserTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = VanishBrowserTests;
 			sourceTree = "<group>";
 		};
 		42BE108C2E9734B700CE7895 /* VanishBrowserUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = VanishBrowserUITests;
 			sourceTree = "<group>";
 		};
@@ -58,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				42E16BE52EA23207004C49D6 /* FFmpeg-iOS in Frameworks */,
+				42E16BE42EA23207004C49D6 /* FFmpeg-iOS-Support in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

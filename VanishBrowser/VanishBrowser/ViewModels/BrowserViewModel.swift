@@ -422,11 +422,11 @@ class BrowserViewModel: NSObject, ObservableObject {
         }
 
         // 初期ページをロード（設定された検索エンジン）
-        let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "Google"
+        let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "DuckDuckGo"
         if let engine = SearchEngine(rawValue: searchEngineString) {
             loadURL(engine.homeURL)
         } else {
-            loadURL("https://www.google.com")
+            loadURL("https://duckduckgo.com")
         }
     }
 
@@ -445,11 +445,11 @@ class BrowserViewModel: NSObject, ObservableObject {
             // スペースがあるか、ドメインっぽくない場合は検索
             if urlToLoad.contains(" ") || !urlToLoad.contains(".") {
                 // 設定された検索エンジンで検索
-                let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "Google"
+                let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "DuckDuckGo"
                 if let engine = SearchEngine(rawValue: searchEngineString) {
                     urlToLoad = engine.searchURL(query: urlToLoad)
                 } else {
-                    urlToLoad = "https://www.google.com/search?q=\(urlToLoad.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+                    urlToLoad = "https://duckduckgo.com/?q=\(urlToLoad.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
                 }
             } else {
                 urlToLoad = "https://" + urlToLoad

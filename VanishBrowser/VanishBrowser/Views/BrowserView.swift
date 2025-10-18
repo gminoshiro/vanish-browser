@@ -371,11 +371,11 @@ struct BrowserView: View {
                     urlText = tab.url
                 } else {
                     // 新規タブの場合は初期ページ（検索エンジン）をロード
-                    let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "Google"
+                    let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "DuckDuckGo"
                     if let engine = SearchEngine(rawValue: searchEngineString) {
                         viewModel.loadURL(engine.homeURL)
                     } else {
-                        viewModel.loadURL("https://www.google.com")
+                        viewModel.loadURL("https://duckduckgo.com")
                     }
                     urlText = ""
                 }
@@ -715,8 +715,22 @@ struct BrowserView: View {
     }
 
     private func handleHLSDownload(quality: HLSQuality, format: DownloadFormat, fileName: String, folder: String) {
+        // DownloadManagerを使用してHLSダウンロードを開始
+        DownloadManager.shared.startHLSDownload(
+            quality: quality,
+            fileName: fileName,
+            folder: folder
+        )
+
+        // ダウンロード完了の通知はDownloadManager内で処理されるため、
+        // ここでは完了通知を表示しない
+        print("✅ HLSダウンロードをDownloadManagerに登録: \(fileName)")
+    }
+
+    // 以前のhandleHLSDownload実装（参考用にコメントアウト）
+    /*
+    private func handleHLSDownloadOld(quality: HLSQuality, format: DownloadFormat, fileName: String, folder: String) {
         Task {
-            let hlsDownloader = HLSDownloader()
             do {
                 if format == .mp4 {
                     // MP4形式でダウンロード（TSセグメント結合方式）
@@ -753,30 +767,14 @@ struct BrowserView: View {
                     )
                     print("✅ HLSダウンロード完了: \(m3u8File.path)")
 
-                    // 合計ファイルサイズを計算（フォルダ内の全ファイル）
-                    let folderPath = m3u8File.deletingLastPathComponent()
-                    let totalSize = try calculateFolderSize(at: folderPath)
-
-                    // m3u8ファイルのパスを保存（相対パスとして）
-                    DownloadService.shared.saveDownloadedFile(
-                        fileName: fileName.replacingOccurrences(of: ".m3u8", with: ""),
-                        filePath: m3u8File.path,
-                        fileSize: totalSize,
-                        mimeType: "application/x-mpegURL",
-                        folder: folder
-                    )
-
-                    await MainActor.run {
-                        downloadedFileName = fileName.replacingOccurrences(of: ".m3u8", with: "")
-                        downloadedFileSize = totalSize
-                        showDownloadCompleted = true
-                    }
+                    // (コメントアウト)
                 }
             } catch {
                 print("❌ HLSダウンロードエラー: \(error)")
             }
         }
     }
+    */
 
     private func calculateFolderSize(at url: URL) throws -> Int64 {
         let fileManager = FileManager.default

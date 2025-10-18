@@ -11,76 +11,76 @@ struct AuthenticationView: View {
     @Binding var isAuthenticated: Bool
     @State private var password = ""
     @State private var authError: String?
+    @State private var showResetAlert = false
     @AppStorage("authEnabled") private var authEnabled: Bool = false
     @AppStorage("authPassword") private var savedPassword: String = ""
     @AppStorage("useBiometric") private var useBiometric: Bool = true
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-                // 上部: アイコンとタイトル
-                VStack(spacing: 30) {
-                    Spacer()
+        VStack(spacing: 0) {
+            // 上部: アイコンとタイトル
+            Spacer()
+                .frame(height: 60)
 
-                    Image(systemName: "lock.shield")
-                        .font(.system(size: 80))
-                        .foregroundColor(.blue)
+            Image(systemName: "lock.shield")
+                .font(.system(size: 80))
+                .foregroundColor(.blue)
 
-                    Text("Vanish Browser")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+            Spacer()
+                .frame(height: 20)
 
-                    if useBiometric && BiometricAuthService.shared.canUseBiometrics() {
-                        Text("\(BiometricAuthService.shared.biometricType())で認証")
+            Text("Vanish Browser")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+
+            if useBiometric && BiometricAuthService.shared.canUseBiometrics() {
+                Spacer()
+                    .frame(height: 10)
+
+                Text("\(BiometricAuthService.shared.biometricType())で認証")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // パスコード入力
+            if !useBiometric || !BiometricAuthService.shared.canUseBiometrics() {
+                VStack(spacing: 0) {
+                    if let error = authError {
+                        Text(error)
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.red)
+                            .padding(.bottom, 10)
                     }
 
-                    Spacer()
-                }
-                .frame(height: geometry.size.height * 0.5)
-
-                // 下部: パスワード入力欄とボタン
-                if !useBiometric || !BiometricAuthService.shared.canUseBiometrics() {
-                    VStack(spacing: 20) {
-                        Text("パスワードを入力")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
-                        SecureField("パスワード", text: $password)
-                            .textFieldStyle(.roundedBorder)
-                            .padding(.horizontal, 40)
-                            .multilineTextAlignment(.center)
-                            .font(.title2)
-                            .textContentType(.password)
-                            .autocapitalization(.none)
-                            .onSubmit {
-                                authenticateWithPassword()
-                            }
-
-                        Button("認証する") {
-                            authenticateWithPassword()
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(maxWidth: 200)
-                        .background(Color.blue)
-                        .cornerRadius(10)
-
-                        if let error = authError {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .multilineTextAlignment(.center)
-                                .padding()
-                        }
+                    PasscodeView(
+                        title: "パスコードを入力",
+                        subtitle: nil,
+                        passcode: $password,
+                        maxDigits: 4
+                    ) { enteredPasscode in
+                        authenticateWithPassword(enteredPasscode)
                     }
+
+                    // パスコードを忘れた場合のリンク
+                    Button("パスコードを忘れた場合") {
+                        showResetAlert = true
+                    }
+                    .font(.footnote)
+                    .foregroundColor(.blue)
+                    .padding(.top, 10)
                     .padding(.bottom, 40)
                 }
-
-                Spacer()
             }
+        }
+        .alert("⚠️ すべてのデータを削除", isPresented: $showResetAlert) {
+            Button("キャンセル", role: .cancel) {}
+            Button("削除してリセット", role: .destructive) {
+                resetPasscode()
+            }
+        } message: {
+            Text("パスコードをリセットするには、セキュリティのためすべてのデータを削除する必要があります。\n\n以下が完全に削除されます：\n• 閲覧履歴\n• ダウンロードファイル\n• ブックマーク\n• パスコード設定\n\nこの操作は取り消せません。本当によろしいですか？")
         }
         .ignoresSafeArea(.keyboard)
         .onAppear {
@@ -112,16 +112,36 @@ struct AuthenticationView: View {
         }
     }
 
-    private func authenticateWithPassword() {
+    private func authenticateWithPassword(_ enteredPassword: String) {
         if savedPassword.isEmpty {
             // パスワード未設定なら何でもOK
             isAuthenticated = true
-        } else if password == savedPassword {
+        } else if enteredPassword == savedPassword {
             isAuthenticated = true
         } else {
-            authError = "パスワードが違います"
+            authError = "パスコードが違います"
             password = ""
+            // 0.5秒後にエラーメッセージをクリア
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                authError = nil
+            }
         }
+    }
+
+    private func resetPasscode() {
+        print("🗑️ パスコードリセット: すべてのデータを削除します")
+
+        // すべてのデータを削除
+        AutoDeleteService.shared.deleteAllData()
+
+        // 認証機能をオフにする
+        authEnabled = false
+        savedPassword = ""
+
+        print("✅ データ削除完了、アプリに入ります")
+
+        // アプリに入れるようにする
+        isAuthenticated = true
     }
 }
 

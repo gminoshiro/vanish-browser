@@ -55,7 +55,7 @@ class BookmarkService {
             print("ブックマークを削除しました")
 
             // 空フォルダを削除
-            if let folderName = folder {
+            if folder != nil {
                 deleteEmptyFolders()
             }
         } catch {

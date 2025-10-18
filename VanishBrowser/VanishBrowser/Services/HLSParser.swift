@@ -146,8 +146,13 @@ class HLSParser {
             throw NSError(domain: "HLSParser", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid m3u8 encoding"])
         }
 
+        print("📄 m3u8コンテンツ (最初の500文字):")
+        print(String(content.prefix(500)))
+
         var segments: [URL] = []
         let lines = content.components(separatedBy: .newlines)
+
+        print("📊 合計 \(lines.count) 行を解析中...")
 
         for line in lines {
             let trimmedLine = line.trimmingCharacters(in: .whitespaces)
@@ -157,10 +162,24 @@ class HLSParser {
                 continue
             }
 
-            // .ts ファイルまたは .m4s ファイルを取得
-            if trimmedLine.hasSuffix(".ts") || trimmedLine.hasSuffix(".m4s") || trimmedLine.contains(".ts?") || trimmedLine.contains(".m4s?") {
+            // .ts, .m4s, .jpeg, .jpg または任意のセグメントファイルを取得
+            // セグメントURLは通常、拡張子を持つか、httpで始まらない相対パス
+            let isSegmentFile = trimmedLine.hasSuffix(".ts") ||
+                               trimmedLine.hasSuffix(".m4s") ||
+                               trimmedLine.hasSuffix(".jpeg") ||
+                               trimmedLine.hasSuffix(".jpg") ||
+                               trimmedLine.contains(".ts?") ||
+                               trimmedLine.contains(".m4s?") ||
+                               (!trimmedLine.hasPrefix("http") && !trimmedLine.contains(".m3u8"))
+
+            if isSegmentFile {
                 if let segmentURL = resolveURL(trimmedLine, relativeTo: url) {
+                    if segments.count < 3 {
+                        print("✅ セグメント[\(segments.count)]: \(segmentURL.lastPathComponent)")
+                    }
                     segments.append(segmentURL)
+                } else {
+                    print("⚠️ セグメントURL解決失敗: \(trimmedLine)")
                 }
             }
         }

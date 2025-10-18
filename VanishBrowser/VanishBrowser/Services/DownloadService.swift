@@ -274,6 +274,29 @@ class DownloadService {
         }
     }
 
+    // すべてのフォルダを強制削除（一時フォルダを含む）
+    func removeAllFolders() {
+        do {
+            let downloadsDirURL = downloadsDirectory
+            let contents = try fileManager.contentsOfDirectory(at: downloadsDirURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+
+            for folderURL in contents {
+                // ディレクトリかどうかチェック
+                var isDirectory: ObjCBool = false
+                guard fileManager.fileExists(atPath: folderURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                    continue
+                }
+
+                // フォルダを削除（空でなくても削除）
+                try fileManager.removeItem(at: folderURL)
+                print("🗑️ フォルダを削除: \(folderURL.lastPathComponent)")
+            }
+            print("✅ すべてのフォルダを削除しました")
+        } catch {
+            print("❌ フォルダ削除エラー: \(error)")
+        }
+    }
+
     // ファイルサイズをフォーマット
     func formatFileSize(_ bytes: Int64) -> String {
         let formatter = ByteCountFormatter()

@@ -10,14 +10,14 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var autoDeleteService = AutoDeleteService.shared
-    @AppStorage("searchEngine") private var searchEngine: String = SearchEngine.google.rawValue
+    @AppStorage("searchEngine") private var searchEngine: String = SearchEngine.duckDuckGo.rawValue
     @AppStorage("authEnabled") private var authEnabled: Bool = false
     @AppStorage("useBiometric") private var useBiometric: Bool = true
     @AppStorage("authPassword") private var authPassword: String = ""
     @State private var showDeleteConfirmation = false
     @State private var storageUsage: (totalBytes: Int64, fileCount: Int) = (0, 0)
     @State private var availableStorage: Int64? = nil
-    @State private var passwordInput: String = ""
+    @State private var showPasscodeSettings = false
 
     var selectedSearchEngine: SearchEngine {
         SearchEngine(rawValue: searchEngine) ?? .google
@@ -43,7 +43,7 @@ struct SettingsView: View {
                 }
 
                 // 認証設定
-                Section(header: Text("認証"), footer: Text(authEnabled ? (useBiometric ? "生体認証が利用できない場合、パスワード認証にフォールバックします。" : "任意のパスワードを設定できます。") : "アプリ起動時の認証を有効にできます。")) {
+                Section(header: Text("認証"), footer: Text(authEnabled ? (useBiometric ? "生体認証が利用できない場合、パスコード認証にフォールバックします。" : "4桁の数字パスコードで認証します。") : "アプリ起動時の認証を有効にできます。")) {
                     Toggle("認証を使用", isOn: $authEnabled)
 
                     if authEnabled {
@@ -51,24 +51,28 @@ struct SettingsView: View {
                             .disabled(false)
 
                         if !useBiometric {
-                            SecureField("パスワード", text: $passwordInput)
-                                .textFieldStyle(.roundedBorder)
-                                .textContentType(.password)
-                                .autocapitalization(.none)
-                                .onChange(of: passwordInput) { _, newValue in
-                                    authPassword = newValue
+                            if !authPassword.isEmpty {
+                                HStack {
+                                    Text("パスコードが設定されています")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
                                 }
 
-                            if !authPassword.isEmpty {
-                                Text("パスワードが設定されています")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                Button("パスコードを変更") {
+                                    showPasscodeSettings = true
+                                }
 
-                                Button("パスワードをクリア") {
+                                Button("パスコードをクリア") {
                                     authPassword = ""
-                                    passwordInput = ""
                                 }
                                 .foregroundColor(.red)
+                            } else {
+                                Button("パスコードを設定") {
+                                    showPasscodeSettings = true
+                                }
                             }
                         }
                     }
@@ -172,7 +176,9 @@ struct SettingsView: View {
             }
             .onAppear {
                 loadStorageInfo()
-                passwordInput = authPassword // パスワード入力欄を初期化
+            }
+            .sheet(isPresented: $showPasscodeSettings) {
+                PasscodeSettingsView()
             }
         }
     }
