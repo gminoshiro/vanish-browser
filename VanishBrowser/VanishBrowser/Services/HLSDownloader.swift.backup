@@ -8,8 +8,7 @@
 import Foundation
 import Combine
 import AVFoundation
-import UIKit
-import CoreVideo
+import FFmpegSupport
 
 class HLSDownloader: NSObject, ObservableObject {
     @Published var progress: Double = 0.0
@@ -274,6 +273,37 @@ class HLSDownloader: NSObject, ObservableObject {
         return finalOutputPath
     }
 
+    /// ローカルm3u8プレイリストを作成
+    private func createLocalM3U8(originalContent: String, segmentNames: [String], in folder: URL, videoName: String) throws -> URL {
+        let m3u8Path = folder.appendingPathComponent("index.m3u8")
+
+        // 元のm3u8コンテンツを解析してローカルファイル名に置き換え
+        var localContent = ""
+        let lines = originalContent.components(separatedBy: .newlines)
+        var segmentIndex = 0
+
+        for line in lines {
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+
+            // セグメントファイル行の場合、ローカルファイル名に置き換え
+            if trimmedLine.hasSuffix(".ts") || trimmedLine.hasSuffix(".m4s") ||
+               trimmedLine.contains(".ts?") || trimmedLine.contains(".m4s?") {
+                if segmentIndex < segmentNames.count {
+                    localContent += segmentNames[segmentIndex] + "\n"
+                    segmentIndex += 1
+                }
+            } else {
+                // その他の行（メタデータ、コメント等）はそのまま保持
+                localContent += line + "\n"
+            }
+        }
+
+        try localContent.write(to: m3u8Path, atomically: true, encoding: .utf8)
+        print("📝 ローカルm3u8作成完了: \(m3u8Path.path)")
+
+        return m3u8Path
+    }
+
     /// TSセグメントを結合してMP4を作成
     private func mergeSegmentsToMP4(segmentNames: [String], in folder: URL, videoName: String) async throws -> URL {
         // ステップ1: TSセグメントを一時ファイルに結合
@@ -294,7 +324,7 @@ class HLSDownloader: NSObject, ObservableObject {
         try mergedFileHandle.close()
         print("✅ TSファイル結合完了: \(mergedTSPath.path)")
 
-        // ステップ2: TSファイルを.mp4にリネーム
+        // ステップ2: AVAssetWriterでTS→MP4変換
         let outputPath = folder.appendingPathComponent("\(videoName).mp4")
 
         // 既存ファイルを削除
@@ -302,8 +332,21 @@ class HLSDownloader: NSObject, ObservableObject {
             try? FileManager.default.removeItem(at: outputPath)
         }
 
-        try FileManager.default.moveItem(at: mergedTSPath, to: outputPath)
-        print("✅ TSファイルを.mp4にリネーム: \(outputPath.path)")
+        print("🔄 FFmpegでTS→MP4変換開始...")
+        do {
+            try await convertTSToMP4WithFFmpeg(inputURL: mergedTSPath, outputURL: outputPath)
+            print("✅ MP4変換成功: \(outputPath.path)")
+
+            // 一時TSファイルを削除
+            try? FileManager.default.removeItem(at: mergedTSPath)
+
+        } catch {
+            print("⚠️ MP4変換失敗: \(error.localizedDescription)")
+            print("💾 TSファイルをそのまま使用します")
+
+            // 変換失敗時は TSファイルを.mp4にリネーム（互換性のため）
+            try FileManager.default.moveItem(at: mergedTSPath, to: outputPath)
+        }
 
         // セグメントファイルを削除
         for segmentName in segmentNames {
@@ -315,164 +358,105 @@ class HLSDownloader: NSObject, ObservableObject {
         return outputPath
     }
 
-    /// JPEG画像シーケンスをMP4に変換（AVAssetWriter使用）
+    /// JPEG画像シーケンスをMP4に変換
     private func mergeJPEGSequenceToMP4(imageNames: [String], in folder: URL, videoName: String) async throws -> URL {
         let outputPath = folder.appendingPathComponent("\(videoName).mp4")
-        
+
         // 既存ファイルを削除
         if FileManager.default.fileExists(atPath: outputPath.path) {
             try? FileManager.default.removeItem(at: outputPath)
         }
-        
+
         print("🖼️ JPEG画像シーケンスからMP4を作成中...")
         print("📊 画像数: \(imageNames.count)")
-        
+
+        // FFmpegで画像シーケンスをMP4に変換
+        // -framerate: フレームレート（4秒ごとの画像なので0.25fps）
+        // -i: 入力ファイルパターン
+        // -c:v: ビデオコーデック（libx264）
+        // -pix_fmt: ピクセルフォーマット
+        // -y: 既存ファイルを上書き
+
         return try await withCheckedThrowingContinuation { continuation in
-            Task {
-                do {
-                    // 最初の画像から解像度を取得
-                    guard let firstImagePath = imageNames.first.map({ folder.appendingPathComponent($0) }),
-                          let firstImage = UIImage(contentsOfFile: firstImagePath.path),
-                          let cgImage = firstImage.cgImage else {
-                        throw NSError(domain: "HLSDownloader", code: -1, 
-                                    userInfo: [NSLocalizedDescriptionKey: "最初の画像の読み込み失敗"])
-                    }
-                    
-                    let videoWidth = cgImage.width
-                    let videoHeight = cgImage.height
-                    
-                    print("📐 動画解像度: \(videoWidth)x\(videoHeight)")
-                    
-                    // AVAssetWriterの設定
-                    let writer = try AVAssetWriter(outputURL: outputPath, fileType: .mp4)
-                    
-                    let videoSettings: [String: Any] = [
-                        AVVideoCodecKey: AVVideoCodecType.h264,
-                        AVVideoWidthKey: videoWidth,
-                        AVVideoHeightKey: videoHeight,
-                        AVVideoCompressionPropertiesKey: [
-                            AVVideoAverageBitRateKey: 3000000, // 3Mbps
-                            AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
-                        ]
-                    ]
-                    
-                    let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-                    writerInput.expectsMediaDataInRealTime = false
-                    
-                    let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-                        assetWriterInput: writerInput,
-                        sourcePixelBufferAttributes: [
-                            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
-                            kCVPixelBufferWidthKey as String: videoWidth,
-                            kCVPixelBufferHeightKey as String: videoHeight
-                        ]
-                    )
-                    
-                    writer.add(writerInput)
-                    writer.startWriting()
-                    writer.startSession(atSourceTime: .zero)
-                    
-                    // 各JPEG画像をフレームとして追加
-                    let frameDuration = CMTime(seconds: 4.0, preferredTimescale: 600) // 4秒/フレーム
-                    var frameCount: Int64 = 0
-                    
-                    for (index, imageName) in imageNames.enumerated() {
-                        // writerInputが準備できるまで待機
-                        while !writerInput.isReadyForMoreMediaData {
-                            try await Task.sleep(nanoseconds: 10_000_000) // 10ms
-                        }
-                        
-                        let imagePath = folder.appendingPathComponent(imageName)
-                        
-                        guard let image = UIImage(contentsOfFile: imagePath.path),
-                              let cgImage = image.cgImage else {
-                            print("⚠️ 画像読み込み失敗: \(imageName)")
-                            continue
-                        }
-                        
-                        // CGImageをCVPixelBufferに変換
-                        var pixelBuffer: CVPixelBuffer?
-                        let options: [CFString: Any] = [
-                            kCVPixelBufferCGImageCompatibilityKey: true,
-                            kCVPixelBufferCGBitmapContextCompatibilityKey: true
-                        ]
-                        
-                        let status = CVPixelBufferCreate(
-                            kCFAllocatorDefault,
-                            videoWidth,
-                            videoHeight,
-                            kCVPixelFormatType_32ARGB,
-                            options as CFDictionary,
-                            &pixelBuffer
-                        )
-                        
-                        guard status == kCVReturnSuccess, let buffer = pixelBuffer else {
-                            print("⚠️ PixelBuffer作成失敗: \(imageName)")
-                            continue
-                        }
-                        
-                        CVPixelBufferLockBaseAddress(buffer, [])
-                        let pixelData = CVPixelBufferGetBaseAddress(buffer)
-                        
-                        let rgbColorSpace = CGColorSpaceCreateDeviceRGB()
-                        guard let context = CGContext(
-                            data: pixelData,
-                            width: videoWidth,
-                            height: videoHeight,
-                            bitsPerComponent: 8,
-                            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-                            space: rgbColorSpace,
-                            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
-                        ) else {
-                            CVPixelBufferUnlockBaseAddress(buffer, [])
-                            print("⚠️ CGContext作成失敗: \(imageName)")
-                            continue
-                        }
-                        
-                        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: videoWidth, height: videoHeight))
-                        CVPixelBufferUnlockBaseAddress(buffer, [])
-                        
-                        // フレームを追加
-                        let presentationTime = CMTimeMultiply(frameDuration, multiplier: Int32(frameCount))
-                        let success = adaptor.append(buffer, withPresentationTime: presentationTime)
-                        
-                        if !success {
-                            print("⚠️ フレーム追加失敗: \(imageName)")
-                        }
-                        
-                        frameCount += 1
-                        
-                        // 進捗表示（10枚ごと）
-                        if index % 10 == 0 {
-                            let progress = Double(index) / Double(imageNames.count) * 100
-                            print("🎬 MP4変換中: \(index)/\(imageNames.count) (\(Int(progress))%)")
-                        }
-                        
-                        // 画像ファイルを削除（メモリ節約）
-                        try? FileManager.default.removeItem(at: imagePath)
-                    }
-                    
-                    // 書き込み完了
-                    writerInput.markAsFinished()
-                    await writer.finishWriting()
-                    
-                    if writer.status == .completed {
-                        print("✅ JPEG→MP4変換成功: \(outputPath.path)")
-                        continuation.resume(returning: outputPath)
-                    } else if let error = writer.error {
-                        print("❌ JPEG→MP4変換失敗: \(error.localizedDescription)")
-                        continuation.resume(throwing: error)
-                    } else {
-                        print("❌ JPEG→MP4変換失敗: 不明なエラー")
-                        continuation.resume(throwing: NSError(
-                            domain: "HLSDownloader",
-                            code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: "MP4変換失敗"]
-                        ))
-                    }
-                } catch {
-                    print("❌ JPEG→MP4変換エラー: \(error.localizedDescription)")
-                    continuation.resume(throwing: error)
+            DispatchQueue.global(qos: .userInitiated).async {
+                // 画像ファイルのリストを作成
+                let listFile = folder.appendingPathComponent("filelist.txt")
+                var listContent = ""
+                for imageName in imageNames {
+                    let imagePath = folder.appendingPathComponent(imageName)
+                    listContent += "file '\(imagePath.path)'\n"
+                    listContent += "duration 4\n" // 各画像を4秒表示
+                }
+                try? listContent.write(to: listFile, atomically: true, encoding: .utf8)
+
+                print("🎬 FFmpegで画像→MP4変換開始...")
+
+                // ffmpeg -f concat -safe 0 -i filelist.txt -c:v libx264 -pix_fmt yuv420p -r 25 output.mp4
+                let result = ffmpeg([
+                    "ffmpeg",
+                    "-f", "concat",
+                    "-safe", "0",
+                    "-i", listFile.path,
+                    "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p",
+                    "-r", "25", // 出力フレームレート
+                    "-y",
+                    outputPath.path
+                ])
+
+                // リストファイルを削除
+                try? FileManager.default.removeItem(at: listFile)
+
+                // 元の画像ファイルを削除
+                for imageName in imageNames {
+                    let imagePath = folder.appendingPathComponent(imageName)
+                    try? FileManager.default.removeItem(at: imagePath)
+                }
+
+                if result == 0 {
+                    print("✅ JPEG→MP4変換成功")
+                    continuation.resume(returning: outputPath)
+                } else {
+                    print("❌ JPEG→MP4変換失敗: return code \(result)")
+                    continuation.resume(throwing: NSError(
+                        domain: "HLSDownloader",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "JPEG→MP4変換失敗: return code \(result)"]
+                    ))
+                }
+            }
+        }
+    }
+
+    /// FFmpegでTS→MP4変換
+    private func convertTSToMP4WithFFmpeg(inputURL: URL, outputURL: URL) async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let inputPath = inputURL.path
+                let outputPath = outputURL.path
+
+                print("🎬 FFmpeg変換: \(inputPath) → \(outputPath)")
+
+                // FFmpegコマンド実行: -i input.ts -c copy output.mp4
+                // -c copy: コーデック再エンコードなし（高速）
+                let result = ffmpeg([
+                    "ffmpeg",
+                    "-i", inputPath,
+                    "-c", "copy",
+                    "-y", // 既存ファイル上書き
+                    outputPath
+                ])
+
+                if result == 0 {
+                    print("✅ FFmpeg変換成功")
+                    continuation.resume()
+                } else {
+                    print("❌ FFmpeg変換失敗: return code \(result)")
+                    continuation.resume(throwing: NSError(
+                        domain: "HLSDownloader",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "FFmpeg変換失敗: return code \(result)"]
+                    ))
                 }
             }
         }
