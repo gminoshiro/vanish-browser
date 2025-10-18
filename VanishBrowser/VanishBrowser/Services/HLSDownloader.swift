@@ -276,7 +276,7 @@ class HLSDownloader: NSObject, ObservableObject {
 
     /// TSセグメントを結合してMP4を作成
     private func mergeSegmentsToMP4(segmentNames: [String], in folder: URL, videoName: String) async throws -> URL {
-        // ステップ1: TSセグメントを一時ファイルに結合
+        // ステップ1: セグメントを一時ファイルに結合
         let mergedTSPath = folder.appendingPathComponent("\(videoName)_temp.ts")
         FileManager.default.createFile(atPath: mergedTSPath.path, contents: nil)
         let mergedFileHandle = try FileHandle(forWritingTo: mergedTSPath)
@@ -285,27 +285,41 @@ class HLSDownloader: NSObject, ObservableObject {
             try? mergedFileHandle.close()
         }
 
-        print("📝 TSセグメントを結合中...")
+        print("📝 セグメントを結合中...")
         for segmentName in segmentNames {
             let segmentPath = folder.appendingPathComponent(segmentName)
             let segmentData = try Data(contentsOf: segmentPath)
             mergedFileHandle.write(segmentData)
         }
         try mergedFileHandle.close()
-        print("✅ TSファイル結合完了: \(mergedTSPath.path)")
+        print("✅ セグメント結合完了: \(mergedTSPath.path)")
 
-        // ステップ2: TSファイルを.mp4にリネーム
+        // ステップ2: AVAssetでMP4コンテナに変換
         let outputPath = folder.appendingPathComponent("\(videoName).mp4")
-
-        // 既存ファイルを削除
         if FileManager.default.fileExists(atPath: outputPath.path) {
             try? FileManager.default.removeItem(at: outputPath)
         }
 
-        try FileManager.default.moveItem(at: mergedTSPath, to: outputPath)
-        print("✅ TSファイルを.mp4にリネーム: \(outputPath.path)")
+        print("🎬 MP4コンテナに変換中...")
+        let asset = AVURLAsset(url: mergedTSPath)
 
-        // セグメントファイルを削除
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
+            throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "AVAssetExportSession作成失敗"])
+        }
+
+        exportSession.outputURL = outputPath
+        exportSession.outputFileType = .mp4
+
+        await exportSession.export()
+
+        if exportSession.status == .completed {
+            print("✅ MP4変換完了: \(outputPath.path)")
+        } else if let error = exportSession.error {
+            throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "MP4変換失敗: \(error.localizedDescription)"])
+        }
+
+        // 一時ファイルとセグメントを削除
+        try? FileManager.default.removeItem(at: mergedTSPath)
         for segmentName in segmentNames {
             let segmentPath = folder.appendingPathComponent(segmentName)
             try? FileManager.default.removeItem(at: segmentPath)
