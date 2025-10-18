@@ -326,15 +326,27 @@ class HLSDownloader: NSObject, ObservableObject {
         
         print("🖼️ JPEG画像シーケンスからMP4を作成中...")
         print("📊 画像数: \(imageNames.count)")
-        
+
+        guard let firstImagePath = imageNames.first.map({ folder.appendingPathComponent($0) }) else {
+            throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "画像ファイルが見つかりません"])
+        }
+
+        let fileData = try Data(contentsOf: firstImagePath)
+        let isActuallyJPEG = fileData.count >= 3 && fileData.starts(with: [0xFF, 0xD8, 0xFF])
+
+        if !isActuallyJPEG {
+            print("⚠️ .jpeg拡張子ですが実際はビデオセグメントです。ビデオマージ処理に切り替えます")
+            return try await mergeSegmentsToMP4(segmentNames: imageNames, in: folder, videoName: videoName)
+        }
+
+        print("✅ JPEG画像として検証完了")
+
         return try await withCheckedThrowingContinuation { continuation in
             Task {
                 do {
-                    // 最初の画像から解像度を取得
-                    guard let firstImagePath = imageNames.first.map({ folder.appendingPathComponent($0) }),
-                          let firstImage = UIImage(contentsOfFile: firstImagePath.path),
+                    guard let firstImage = UIImage(contentsOfFile: firstImagePath.path),
                           let cgImage = firstImage.cgImage else {
-                        throw NSError(domain: "HLSDownloader", code: -1, 
+                        throw NSError(domain: "HLSDownloader", code: -1,
                                     userInfo: [NSLocalizedDescriptionKey: "最初の画像の読み込み失敗"])
                     }
                     
