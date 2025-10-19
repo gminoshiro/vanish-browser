@@ -22,11 +22,11 @@ class HLSDownloader: NSObject, ObservableObject {
     private var downloadTask: Task<Void, Never>?
     private var currentTempFolder: URL?
 
-    // タイムアウトを60秒に延長したURLSession
+    // タイムアウトを延長したURLSession
     private lazy var urlSession: URLSession = {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = 300
+        config.timeoutIntervalForRequest = 120  // 2分
+        config.timeoutIntervalForResource = 3600  // 1時間
         return URLSession(configuration: config)
     }()
 
