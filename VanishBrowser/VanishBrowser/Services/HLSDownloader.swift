@@ -376,15 +376,24 @@ class HLSDownloader: NSObject, ObservableObject {
                 throw NSError(domain: "HLSDownloader", code: Int(ret), userInfo: [NSLocalizedDescriptionKey: "出力コンテキスト作成失敗: \(ret)"])
             }
 
-            // ビデオストリームをコピー
+            // ビデオストリームをコピー（timed_id3などの非対応ストリームはスキップ）
             guard let inCtx = inputFormatContext else {
                 throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "入力コンテキストがnil"])
             }
 
+            var streamMapping: [Int: Int] = [:] // 入力ストリームインデックス -> 出力ストリームインデックス
+
             for i in 0..<Int(inCtx.pointee.nb_streams) {
                 let inStream = inCtx.pointee.streams[i]!
-                let outStream = avformat_new_stream(outCtx, nil)
+                let codecType = inStream.pointee.codecpar.pointee.codec_type
 
+                // ビデオとオーディオストリームのみコピー（timed_id3などはスキップ）
+                if codecType != AVMEDIA_TYPE_VIDEO && codecType != AVMEDIA_TYPE_AUDIO {
+                    print("⚠️ ストリーム #\(i) をスキップ (タイプ: \(codecType))")
+                    continue
+                }
+
+                let outStream = avformat_new_stream(outCtx, nil)
                 guard let outStream = outStream else {
                     throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "ストリーム作成失敗"])
                 }
@@ -395,6 +404,8 @@ class HLSDownloader: NSObject, ObservableObject {
                 }
 
                 outStream.pointee.codecpar.pointee.codec_tag = 0
+                streamMapping[i] = Int(outStream.pointee.index)
+                print("✅ ストリーム #\(i) -> #\(outStream.pointee.index) (タイプ: \(codecType))")
             }
 
             // 出力ファイルを開く
@@ -419,8 +430,18 @@ class HLSDownloader: NSObject, ObservableObject {
             while av_read_frame(inCtx, packet!) >= 0 {
                 defer { av_packet_unref(packet!) }
 
-                let inStream = inCtx.pointee.streams[Int(packet!.pointee.stream_index)]!
-                let outStream = outCtx.pointee.streams[Int(packet!.pointee.stream_index)]!
+                let streamIndex = Int(packet!.pointee.stream_index)
+
+                // マッピングされていないストリーム（timed_id3など）はスキップ
+                guard let outStreamIndex = streamMapping[streamIndex] else {
+                    continue
+                }
+
+                let inStream = inCtx.pointee.streams[streamIndex]!
+                let outStream = outCtx.pointee.streams[outStreamIndex]!
+
+                // ストリームインデックスを更新
+                packet!.pointee.stream_index = Int32(outStreamIndex)
 
                 // タイムスタンプ変換
                 packet!.pointee.pts = av_rescale_q_rnd(packet!.pointee.pts, inStream.pointee.time_base, outStream.pointee.time_base, AV_ROUND_NEAR_INF)
