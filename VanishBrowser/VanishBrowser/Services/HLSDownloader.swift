@@ -291,26 +291,56 @@ class HLSDownloader: NSObject, ObservableObject {
             try? FileManager.default.removeItem(at: outputPath)
         }
 
-        // セグメントを直接結合してMP4として保存（コンテナなしの生H.264でも再生可能）
-        FileManager.default.createFile(atPath: outputPath.path, contents: nil)
-        let outputHandle = try FileHandle(forWritingTo: outputPath)
+        // 生H.264データを一時ファイルに結合
+        let rawH264Path = folder.appendingPathComponent("raw.h264")
+        if FileManager.default.fileExists(atPath: rawH264Path.path) {
+            try? FileManager.default.removeItem(at: rawH264Path)
+        }
+
+        FileManager.default.createFile(atPath: rawH264Path.path, contents: nil)
+        let rawHandle = try FileHandle(forWritingTo: rawH264Path)
 
         defer {
-            try? outputHandle.close()
+            try? rawHandle.close()
         }
 
         for (index, segmentName) in segmentNames.enumerated() {
             let segmentPath = folder.appendingPathComponent(segmentName)
             let segmentData = try Data(contentsOf: segmentPath)
-            outputHandle.write(segmentData)
+            rawHandle.write(segmentData)
 
             if index % 100 == 0 {
                 print("🎬 結合中: \(index)/\(segmentNames.count)")
             }
         }
 
-        try outputHandle.close()
-        print("✅ セグメント結合完了: \(outputPath.path)")
+        try rawHandle.close()
+        print("✅ 生H.264セグメント結合完了")
+
+        // AVAssetを使ってMP4コンテナに変換
+        let asset = AVAsset(url: rawH264Path)
+
+        // エクスポート設定
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
+            throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "AVAssetExportSession作成失敗"])
+        }
+
+        exportSession.outputURL = outputPath
+        exportSession.outputFileType = .mp4
+
+        print("🎬 MP4コンテナ変換開始...")
+
+        await exportSession.export()
+
+        if let error = exportSession.error {
+            print("❌ MP4変換失敗: \(error.localizedDescription)")
+            // 変換失敗時は生H.264ファイルをそのまま使用
+            try FileManager.default.moveItem(at: rawH264Path, to: outputPath)
+            print("⚠️ 生H.264ファイルを.mp4として保存")
+        } else {
+            print("✅ MP4コンテナ変換完了")
+            try? FileManager.default.removeItem(at: rawH264Path)
+        }
 
         // セグメントファイルを削除
         for segmentName in segmentNames {
