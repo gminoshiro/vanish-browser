@@ -347,7 +347,7 @@ class HLSDownloader: NSObject, ObservableObject {
             var outputFormatContext: UnsafeMutablePointer<AVFormatContext>?
 
             defer {
-                if let ctx = inputFormatContext {
+                if inputFormatContext != nil {
                     avformat_close_input(&inputFormatContext)
                 }
                 if let ctx = outputFormatContext {
@@ -410,22 +410,25 @@ class HLSDownloader: NSObject, ObservableObject {
             }
 
             // パケットをコピー
-            var packet = AVPacket()
-            av_init_packet(&packet)
+            var packet = av_packet_alloc()
+            guard packet != nil else {
+                throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "パケット割り当て失敗"])
+            }
+            defer { av_packet_free(&packet) }
 
-            while av_read_frame(inCtx, &packet) >= 0 {
-                defer { av_packet_unref(&packet) }
+            while av_read_frame(inCtx, packet!) >= 0 {
+                defer { av_packet_unref(packet!) }
 
-                let inStream = inCtx.pointee.streams[Int(packet.stream_index)]!
-                let outStream = outCtx.pointee.streams[Int(packet.stream_index)]!
+                let inStream = inCtx.pointee.streams[Int(packet!.pointee.stream_index)]!
+                let outStream = outCtx.pointee.streams[Int(packet!.pointee.stream_index)]!
 
                 // タイムスタンプ変換
-                packet.pts = av_rescale_q_rnd(packet.pts, inStream.pointee.time_base, outStream.pointee.time_base, AV_ROUND_NEAR_INF)
-                packet.dts = av_rescale_q_rnd(packet.dts, inStream.pointee.time_base, outStream.pointee.time_base, AV_ROUND_NEAR_INF)
-                packet.duration = av_rescale_q(packet.duration, inStream.pointee.time_base, outStream.pointee.time_base)
-                packet.pos = -1
+                packet!.pointee.pts = av_rescale_q_rnd(packet!.pointee.pts, inStream.pointee.time_base, outStream.pointee.time_base, AV_ROUND_NEAR_INF)
+                packet!.pointee.dts = av_rescale_q_rnd(packet!.pointee.dts, inStream.pointee.time_base, outStream.pointee.time_base, AV_ROUND_NEAR_INF)
+                packet!.pointee.duration = av_rescale_q(packet!.pointee.duration, inStream.pointee.time_base, outStream.pointee.time_base)
+                packet!.pointee.pos = -1
 
-                ret = av_interleaved_write_frame(outCtx, &packet)
+                ret = av_interleaved_write_frame(outCtx, packet!)
                 if ret < 0 {
                     print("⚠️ パケット書き込み警告: \(ret)")
                 }
