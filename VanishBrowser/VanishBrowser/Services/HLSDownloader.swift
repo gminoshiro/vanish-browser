@@ -22,6 +22,14 @@ class HLSDownloader: NSObject, ObservableObject {
     private var downloadTask: Task<Void, Never>?
     private var currentTempFolder: URL?
 
+    // タイムアウトを60秒に延長したURLSession
+    private lazy var urlSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 300
+        return URLSession(configuration: config)
+    }()
+
     /// HLS動画をMP4形式でダウンロード（AVAssetExportSession使用）
     func downloadHLSAsMP4(quality: HLSQuality, fileName: String, folder: String) async throws -> URL {
         print("🎬 HLS→MP4変換ダウンロード開始: \(quality.displayName)")
@@ -194,7 +202,7 @@ class HLSDownloader: NSObject, ObservableObject {
                 activeDownloads += 1
 
                 group.addTask {
-                    let (data, _) = try await URLSession.shared.data(from: segmentURL)
+                    let (data, _) = try await self.urlSession.data(from: segmentURL)
                     let segmentFileName = "segment_\(String(format: "%04d", index))\(fileExtension)"
                     let segmentFile = hlsFolder.appendingPathComponent(segmentFileName)
                     try data.write(to: segmentFile)
@@ -228,7 +236,7 @@ class HLSDownloader: NSObject, ObservableObject {
                     nextIndex += 1
 
                     group.addTask {
-                        let (data, _) = try await URLSession.shared.data(from: segmentURL)
+                        let (data, _) = try await self.urlSession.data(from: segmentURL)
                         let segmentFileName = "segment_\(String(format: "%04d", index))\(fileExtension)"
                         let segmentFile = hlsFolder.appendingPathComponent(segmentFileName)
                         try data.write(to: segmentFile)
