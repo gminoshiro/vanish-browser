@@ -10,6 +10,9 @@ import Combine
 import AVFoundation
 import UIKit
 import CoreVideo
+import avformat
+import avcodec
+import avutil
 
 class HLSDownloader: NSObject, ObservableObject {
     @Published var progress: Double = 0.0
@@ -282,9 +285,9 @@ class HLSDownloader: NSObject, ObservableObject {
         return finalOutputPath
     }
 
-    /// TSセグメントを結合してMP4を作成
+    /// TSセグメントを結合してMP4を作成（libavformatを使用）
     private func mergeSegmentsToMP4(segmentNames: [String], in folder: URL, videoName: String) async throws -> URL {
-        print("📝 セグメントを結合中...")
+        print("📝 セグメントをlibavformatで結合中...")
 
         let outputPath = folder.appendingPathComponent("\(videoName).mp4")
         if FileManager.default.fileExists(atPath: outputPath.path) {
@@ -317,30 +320,15 @@ class HLSDownloader: NSObject, ObservableObject {
         try rawHandle.close()
         print("✅ 生H.264セグメント結合完了")
 
-        // AVAssetを使ってMP4コンテナに変換
-        let asset = AVAsset(url: rawH264Path)
+        // libavformatでH.264→MP4変換
+        print("🎬 libavformatでMP4コンテナ作成開始...")
 
-        // エクスポート設定
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
-            throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "AVAssetExportSession作成失敗"])
-        }
+        try await convertH264ToMP4(inputPath: rawH264Path.path, outputPath: outputPath.path)
 
-        exportSession.outputURL = outputPath
-        exportSession.outputFileType = .mp4
+        print("✅ MP4変換成功")
 
-        print("🎬 MP4コンテナ変換開始...")
-
-        await exportSession.export()
-
-        if let error = exportSession.error {
-            print("❌ MP4変換失敗: \(error.localizedDescription)")
-            // 変換失敗時は生H.264ファイルをそのまま使用
-            try FileManager.default.moveItem(at: rawH264Path, to: outputPath)
-            print("⚠️ 生H.264ファイルを.mp4として保存")
-        } else {
-            print("✅ MP4コンテナ変換完了")
-            try? FileManager.default.removeItem(at: rawH264Path)
-        }
+        // 一時ファイル削除
+        try? FileManager.default.removeItem(at: rawH264Path)
 
         // セグメントファイルを削除
         for segmentName in segmentNames {
@@ -350,6 +338,103 @@ class HLSDownloader: NSObject, ObservableObject {
 
         print("🎬 動画ファイル保存完了: \(outputPath.path)")
         return outputPath
+    }
+
+    /// libavformatを使ってH.264ファイルをMP4コンテナに変換
+    private func convertH264ToMP4(inputPath: String, outputPath: String) async throws {
+        return try await Task {
+            var inputFormatContext: UnsafeMutablePointer<AVFormatContext>?
+            var outputFormatContext: UnsafeMutablePointer<AVFormatContext>?
+
+            defer {
+                if let ctx = inputFormatContext {
+                    avformat_close_input(&inputFormatContext)
+                }
+                if let ctx = outputFormatContext {
+                    if ctx.pointee.pb != nil {
+                        avio_closep(&outputFormatContext!.pointee.pb)
+                    }
+                    avformat_free_context(ctx)
+                }
+            }
+
+            // 入力ファイルを開く
+            var ret = avformat_open_input(&inputFormatContext, inputPath, nil, nil)
+            guard ret >= 0 else {
+                throw NSError(domain: "HLSDownloader", code: Int(ret), userInfo: [NSLocalizedDescriptionKey: "入力ファイルを開けません: \(ret)"])
+            }
+
+            // ストリーム情報を取得
+            ret = avformat_find_stream_info(inputFormatContext, nil)
+            guard ret >= 0 else {
+                throw NSError(domain: "HLSDownloader", code: Int(ret), userInfo: [NSLocalizedDescriptionKey: "ストリーム情報取得失敗: \(ret)"])
+            }
+
+            // 出力フォーマットコンテキスト作成
+            ret = avformat_alloc_output_context2(&outputFormatContext, nil, "mp4", outputPath)
+            guard ret >= 0, let outCtx = outputFormatContext else {
+                throw NSError(domain: "HLSDownloader", code: Int(ret), userInfo: [NSLocalizedDescriptionKey: "出力コンテキスト作成失敗: \(ret)"])
+            }
+
+            // ビデオストリームをコピー
+            guard let inCtx = inputFormatContext else {
+                throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "入力コンテキストがnil"])
+            }
+
+            for i in 0..<Int(inCtx.pointee.nb_streams) {
+                let inStream = inCtx.pointee.streams[i]!
+                let outStream = avformat_new_stream(outCtx, nil)
+
+                guard let outStream = outStream else {
+                    throw NSError(domain: "HLSDownloader", code: -1, userInfo: [NSLocalizedDescriptionKey: "ストリーム作成失敗"])
+                }
+
+                ret = avcodec_parameters_copy(outStream.pointee.codecpar, inStream.pointee.codecpar)
+                guard ret >= 0 else {
+                    throw NSError(domain: "HLSDownloader", code: Int(ret), userInfo: [NSLocalizedDescriptionKey: "パラメータコピー失敗: \(ret)"])
+                }
+
+                outStream.pointee.codecpar.pointee.codec_tag = 0
+            }
+
+            // 出力ファイルを開く
+            ret = avio_open(&outCtx.pointee.pb, outputPath, AVIO_FLAG_WRITE)
+            guard ret >= 0 else {
+                throw NSError(domain: "HLSDownloader", code: Int(ret), userInfo: [NSLocalizedDescriptionKey: "出力ファイルを開けません: \(ret)"])
+            }
+
+            // ヘッダー書き込み
+            ret = avformat_write_header(outCtx, nil)
+            guard ret >= 0 else {
+                throw NSError(domain: "HLSDownloader", code: Int(ret), userInfo: [NSLocalizedDescriptionKey: "ヘッダー書き込み失敗: \(ret)"])
+            }
+
+            // パケットをコピー
+            var packet = AVPacket()
+            av_init_packet(&packet)
+
+            while av_read_frame(inCtx, &packet) >= 0 {
+                defer { av_packet_unref(&packet) }
+
+                let inStream = inCtx.pointee.streams[Int(packet.stream_index)]!
+                let outStream = outCtx.pointee.streams[Int(packet.stream_index)]!
+
+                // タイムスタンプ変換
+                packet.pts = av_rescale_q_rnd(packet.pts, inStream.pointee.time_base, outStream.pointee.time_base, AV_ROUND_NEAR_INF)
+                packet.dts = av_rescale_q_rnd(packet.dts, inStream.pointee.time_base, outStream.pointee.time_base, AV_ROUND_NEAR_INF)
+                packet.duration = av_rescale_q(packet.duration, inStream.pointee.time_base, outStream.pointee.time_base)
+                packet.pos = -1
+
+                ret = av_interleaved_write_frame(outCtx, &packet)
+                if ret < 0 {
+                    print("⚠️ パケット書き込み警告: \(ret)")
+                }
+            }
+
+            // トレーラー書き込み
+            av_write_trailer(outCtx)
+
+        }.value
     }
 
     /// JPEG画像シーケンスをMP4に変換（AVAssetWriter使用）
