@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("authEnabled") private var authEnabled: Bool = false
     @AppStorage("useBiometric") private var useBiometric: Bool = true
     @AppStorage("authPassword") private var authPassword: String = ""
+    @AppStorage("privateMode") private var privateMode: Bool = true
     @State private var showDeleteConfirmation = false
     @State private var storageUsage: (totalBytes: Int64, fileCount: Int) = (0, 0)
     @State private var availableStorage: Int64? = nil
@@ -101,6 +102,11 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+                }
+
+                // プライバシー設定
+                Section(header: Text("プライバシー"), footer: Text("プライベートモード有効時、閲覧履歴・Cookie・キャッシュが永続化されません。")) {
+                    Toggle("プライベートモード", isOn: $privateMode)
                 }
 
                 // 検索エンジン設定

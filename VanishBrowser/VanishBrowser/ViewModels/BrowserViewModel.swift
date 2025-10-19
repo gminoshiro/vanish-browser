@@ -74,7 +74,10 @@ class BrowserViewModel: NSObject, ObservableObject {
 
     override init() {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent() // プライバシー保護：永続化しない
+
+        // プライベートモード設定を読み込み
+        let isPrivateMode = UserDefaults.standard.object(forKey: "privateMode") as? Bool ?? true
+        configuration.websiteDataStore = isPrivateMode ? .nonPersistent() : .default()
 
         // メディア再生設定
         configuration.allowsInlineMediaPlayback = true // インライン再生を有効化
