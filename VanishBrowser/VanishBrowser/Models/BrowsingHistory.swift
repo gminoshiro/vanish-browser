@@ -34,7 +34,12 @@ class BrowsingHistoryManager: ObservableObject {
         loadHistory()
     }
 
-    func addToHistory(url: String, title: String) {
+    func addToHistory(url: String, title: String, isPrivate: Bool = false) {
+        // プライベートブラウジングの場合は履歴に保存しない
+        if isPrivate {
+            return
+        }
+
         // 同じURLがある場合は削除してから追加（最新を上に）
         history.removeAll { $0.url == url }
 

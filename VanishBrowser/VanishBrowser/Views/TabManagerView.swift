@@ -17,6 +17,13 @@ struct TabManagerView: View {
         case private_ = "プライベート"
     }
 
+    init(tabManager: TabManager) {
+        self.tabManager = tabManager
+        // 現在のタブがプライベートモードならトグルもプライベートに設定
+        let isCurrentTabPrivate = tabManager.currentTab?.isPrivate ?? false
+        _selectedMode = State(initialValue: isCurrentTabPrivate ? .private_ : .normal)
+    }
+
     var filteredTabs: [Tab] {
         tabManager.activeTabs.filter { tab in
             if selectedMode == .normal {

@@ -518,6 +518,9 @@ struct BrowserView: View {
             Text("\(downloadedFileName)\n(\(String(format: "%.1f", sizeInMB)) MB)")
         }
         .onAppear {
+            // viewModelにtabManagerをセット（履歴保存時のisPrivate判定用）
+            viewModel.tabManager = tabManager
+
             // ダウンロードダイアログ表示の通知を受信
             NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("ShowDownloadDialog"),

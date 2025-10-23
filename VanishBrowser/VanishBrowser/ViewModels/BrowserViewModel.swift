@@ -67,6 +67,7 @@ class BrowserViewModel: NSObject, ObservableObject {
     @Published var isDesktopMode = false  // デスクトップサイト表示
 
     var webView: WKWebView
+    weak var tabManager: TabManager?  // タブマネージャーへの参照（isPrivate取得用）
     private var cancellables = Set<AnyCancellable>()
     private var progressObserver: NSKeyValueObservation?
     private var currentFindConfiguration: WKFindConfiguration?
@@ -760,13 +761,14 @@ extension BrowserViewModel: WKNavigationDelegate {
             self.isLoading = false
             self.loadingProgress = 0.0
 
-            // 閲覧履歴に追加
+            // 閲覧履歴に追加（プライベートモードの場合は保存しない）
             if let url = webView.url?.absoluteString,
                !url.isEmpty,
                !url.hasPrefix("about:"),
                !url.hasPrefix("file:") {
                 let title = webView.title ?? url
-                BrowsingHistoryManager.shared.addToHistory(url: url, title: title)
+                let isPrivate = self.tabManager?.currentTab?.isPrivate ?? false
+                BrowsingHistoryManager.shared.addToHistory(url: url, title: title, isPrivate: isPrivate)
             }
         }
     }
