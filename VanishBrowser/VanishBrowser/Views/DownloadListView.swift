@@ -50,8 +50,8 @@ struct DownloadListView: View {
     @ViewBuilder
     var homeFilesSection: some View {
         let homeFiles = filesInFolder("")
-        ForEach(homeFiles, id: \.id) { download in
-            fileRow(for: download)
+        ForEach(Array(homeFiles.enumerated()), id: \.element.id) { index, download in
+            fileRow(for: download, allFiles: homeFiles, index: index)
         }
     }
 
@@ -139,8 +139,13 @@ struct DownloadListView: View {
 
                 if selectedFolderForView != nil {
                     // フォルダ内のファイル表示
-                    ForEach(filesInFolder(selectedFolderForView!), id: \.id) { download in
-                        NavigationLink(destination: FileViewerView(file: download)) {
+                    let folderFiles = filesInFolder(selectedFolderForView!)
+                    ForEach(Array(folderFiles.enumerated()), id: \.element.id) { index, download in
+                        NavigationLink(destination: FileViewerView(
+                            file: download,
+                            allFiles: folderFiles,
+                            currentIndex: index
+                        )) {
                             HStack(spacing: 12) {
                                 ThumbnailView(file: download)
                                     .frame(width: 60, height: 60)
@@ -345,7 +350,17 @@ struct DownloadListView: View {
                 Text("新しいフォルダ名を入力してください")
             }
             .alert("ファイルをリネーム", isPresented: $showRenameFile) {
-                TextField("新しいファイル名", text: $newFileName)
+                TextField("新しいファイル名", text: Binding(
+                    get: {
+                        // 拡張子を除いたファイル名のみ表示
+                        (newFileName as NSString).deletingPathExtension
+                    },
+                    set: { newValue in
+                        // 拡張子を維持したまま名前だけ変更
+                        let ext = (newFileName as NSString).pathExtension
+                        newFileName = ext.isEmpty ? newValue : "\(newValue).\(ext)"
+                    }
+                ))
                 Button("変更") {
                     if !newFileName.isEmpty, let file = selectedFile {
                         if DownloadService.shared.renameFile(file, newName: newFileName) {
@@ -356,6 +371,11 @@ struct DownloadListView: View {
                 }
                 Button("キャンセル", role: .cancel) {
                     newFileName = ""
+                }
+            } message: {
+                let ext = (newFileName as NSString).pathExtension
+                if !ext.isEmpty {
+                    Text("拡張子 .\(ext) は自動的に保持されます")
                 }
             }
             .alert("フォルダに移動", isPresented: $showMoveFile) {
@@ -435,8 +455,12 @@ struct DownloadListView: View {
     }
 
     @ViewBuilder
-    private func fileRow(for download: DownloadedFile) -> some View {
-        NavigationLink(destination: FileViewerView(file: download)) {
+    private func fileRow(for download: DownloadedFile, allFiles: [DownloadedFile], index: Int) -> some View {
+        NavigationLink(destination: FileViewerView(
+            file: download,
+            allFiles: allFiles,
+            currentIndex: index
+        )) {
             HStack(spacing: 12) {
                 ThumbnailView(file: download)
                     .frame(width: 60, height: 60)

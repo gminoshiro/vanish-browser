@@ -12,6 +12,8 @@ import Combine
 
 struct FileViewerView: View {
     let file: DownloadedFile
+    let allFiles: [DownloadedFile]?  // ナビゲーション用
+    let currentIndex: Int?  // ナビゲーション用
     @Environment(\.dismiss) var dismiss
     @State private var player: AVPlayer?
     @State private var image: UIImage?
@@ -21,9 +23,13 @@ struct FileViewerView: View {
     @State private var cancellables = Set<AnyCancellable>()
     @State private var isLoading = true
     @State private var showCustomVideoPlayer = false  // カスタムプレーヤー表示用
+    @State private var currentFile: DownloadedFile
 
-    init(file: DownloadedFile) {
+    init(file: DownloadedFile, allFiles: [DownloadedFile]? = nil, currentIndex: Int? = nil) {
         self.file = file
+        self.allFiles = allFiles
+        self.currentIndex = currentIndex
+        self._currentFile = State(initialValue: file)
         print("🎬 FileViewerView初期化: \(file.fileName ?? "無名")")
         print("🎬 filePath: \(file.filePath ?? "nil")")
     }
@@ -101,8 +107,43 @@ struct FileViewerView: View {
                 Color.black.ignoresSafeArea()
 
                 contentView
+
+                // ナビゲーションボタン（動画・画像のみ、複数ファイルがある場合）
+                if let allFiles = allFiles, let currentIndex = currentIndex, allFiles.count > 1,
+                   isMediaFile(currentFile) {
+                    HStack {
+                        // 前へボタン
+                        if currentIndex > 0 {
+                            Button(action: navigateToPrevious) {
+                                Image(systemName: "chevron.left.circle.fill")
+                                    .font(.system(size: 44))
+                                    .foregroundColor(.white)
+                                    .background(Circle().fill(Color.black.opacity(0.3)).frame(width: 50, height: 50))
+                            }
+                            .padding(.leading, 20)
+                        } else {
+                            Spacer().frame(width: 64)
+                        }
+
+                        Spacer()
+
+                        // 次へボタン
+                        if currentIndex < allFiles.count - 1 {
+                            Button(action: navigateToNext) {
+                                Image(systemName: "chevron.right.circle.fill")
+                                    .font(.system(size: 44))
+                                    .foregroundColor(.white)
+                                    .background(Circle().fill(Color.black.opacity(0.3)).frame(width: 50, height: 50))
+                            }
+                            .padding(.trailing, 20)
+                        } else {
+                            Spacer().frame(width: 64)
+                        }
+                    }
+                    .frame(maxHeight: .infinity, alignment: .center)
+                }
             }
-            .navigationTitle(file.fileName ?? "無題")
+            .navigationTitle(currentFile.fileName ?? "無題")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -113,7 +154,7 @@ struct FileViewerView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    ShareLink(item: fileURL) {
+                    ShareLink(item: currentFileURL) {
                         Image(systemName: "square.and.arrow.up")
                             .foregroundColor(.white)
                     }
@@ -145,8 +186,44 @@ struct FileViewerView: View {
         return URL(fileURLWithPath: absolutePath)
     }
 
+    private var currentFileURL: URL {
+        guard let relativePath = currentFile.filePath else {
+            return URL(fileURLWithPath: "")
+        }
+        let absolutePath = DownloadService.shared.getAbsolutePath(from: relativePath)
+        return URL(fileURLWithPath: absolutePath)
+    }
+
+    private func isMediaFile(_ file: DownloadedFile) -> Bool {
+        guard let fileName = file.fileName else { return false }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "mp4", "mov", "m4v", "avi", "mkv", "webm"].contains(ext)
+    }
+
+    private func navigateToPrevious() {
+        guard let allFiles = allFiles, let currentIndex = currentIndex, currentIndex > 0 else { return }
+        currentFile = allFiles[currentIndex - 1]
+        resetAndLoad()
+    }
+
+    private func navigateToNext() {
+        guard let allFiles = allFiles, let currentIndex = currentIndex, currentIndex < allFiles.count - 1 else { return }
+        currentFile = allFiles[currentIndex + 1]
+        resetAndLoad()
+    }
+
+    private func resetAndLoad() {
+        isLoading = true
+        image = nil
+        player = nil
+        currentScale = 1.0
+        lastScale = 1.0
+        showCustomVideoPlayer = false
+        loadFile()
+    }
+
     private func loadFile() {
-        guard let relativePath = file.filePath else {
+        guard let relativePath = currentFile.filePath else {
             print("❌ FileViewerView: ファイルパスがありません")
             self.isLoading = false
             return

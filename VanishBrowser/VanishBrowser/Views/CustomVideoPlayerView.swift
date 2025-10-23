@@ -46,7 +46,7 @@ struct CustomVideoPlayerView: View {
 
             // カスタムコントロール
             if showControls {
-                VStack {
+                VStack(spacing: 0) {
                     // 上部: タイトルと閉じるボタン
                     HStack {
                         Text(videoFileName)
@@ -64,7 +64,9 @@ struct CustomVideoPlayerView: View {
                                 .foregroundColor(.white)
                         }
                     }
-                    .padding()
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
                     .background(
                         LinearGradient(
                             gradient: Gradient(colors: [Color.black.opacity(0.7), Color.clear]),
@@ -72,6 +74,7 @@ struct CustomVideoPlayerView: View {
                             endPoint: .bottom
                         )
                     )
+                    .safeAreaPadding(.top)
 
                     Spacer()
 
@@ -98,7 +101,7 @@ struct CustomVideoPlayerView: View {
                                 .font(.caption)
                                 .monospacedDigit()
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 20)
 
                         // 再生ボタンとダウンロードボタン
                         HStack(spacing: 30) {
@@ -182,7 +185,7 @@ struct CustomVideoPlayerView: View {
                                     .frame(width: 44, height: 44)
                             }
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 20)
                         .padding(.bottom, 20)
                     }
                     .background(
@@ -192,6 +195,7 @@ struct CustomVideoPlayerView: View {
                             endPoint: .bottom
                         )
                     )
+                    .safeAreaPadding(.bottom)
                 }
                 .transition(.opacity)
             }
