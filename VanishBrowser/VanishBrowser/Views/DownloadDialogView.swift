@@ -23,13 +23,29 @@ struct DownloadDialogView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // ファイル名入力
+                // ファイル名入力（拡張子は編集不可）
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("", text: $fileName)
+                    HStack(spacing: 4) {
+                        TextField("", text: Binding(
+                            get: { getFileNameWithoutExtension() },
+                            set: { newValue in
+                                // 拡張子を維持したまま名前だけ変更
+                                let ext = getFileExtension()
+                                fileName = ext.isEmpty ? newValue : "\(newValue).\(ext)"
+                            }
+                        ))
                         .font(.system(size: 17))
                         .padding()
                         .background(Color(.systemGray6))
                         .cornerRadius(10)
+
+                        if !getFileExtension().isEmpty {
+                            Text(".\(getFileExtension())")
+                                .font(.system(size: 17))
+                                .foregroundColor(.secondary)
+                                .padding(.trailing, 16)
+                        }
+                    }
                 }
                 .padding()
 
@@ -137,6 +153,14 @@ struct DownloadDialogView: View {
             onDownload(fileName, selectedFolder)
             dismiss()
         }
+    }
+
+    private func getFileNameWithoutExtension() -> String {
+        return (fileName as NSString).deletingPathExtension
+    }
+
+    private func getFileExtension() -> String {
+        return (fileName as NSString).pathExtension
     }
 }
 

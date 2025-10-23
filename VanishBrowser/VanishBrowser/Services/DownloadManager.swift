@@ -314,22 +314,34 @@ extension DownloadManager: URLSessionDownloadDelegate {
 
             // フォルダ作成とファイル保存先URL
             let baseURL = DownloadService.shared.getDownloadsDirectory()
-            let destinationURL: URL
+            let folderURL: URL
 
             if downloadTaskObj.folder.isEmpty {
                 // フォルダ未選択：Downloadsディレクトリ直下に保存
-                destinationURL = baseURL.appendingPathComponent(fileName)
+                folderURL = baseURL
             } else {
                 // フォルダ指定あり
-                let folderURL = baseURL.appendingPathComponent(downloadTaskObj.folder, isDirectory: true)
+                folderURL = baseURL.appendingPathComponent(downloadTaskObj.folder, isDirectory: true)
                 if !FileManager.default.fileExists(atPath: folderURL.path) {
                     try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
                 }
-                destinationURL = folderURL.appendingPathComponent(fileName)
             }
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                try FileManager.default.removeItem(at: destinationURL)
+
+            // 重複ファイル名を処理（file.jpg → file (1).jpg）
+            var destinationURL = folderURL.appendingPathComponent(fileName)
+            var counter = 1
+            let nameWithoutExt = (fileName as NSString).deletingPathExtension
+            let ext = (fileName as NSString).pathExtension
+
+            while FileManager.default.fileExists(atPath: destinationURL.path) {
+                let newFileName = ext.isEmpty ? "\(nameWithoutExt) (\(counter))" : "\(nameWithoutExt) (\(counter)).\(ext)"
+                destinationURL = folderURL.appendingPathComponent(newFileName)
+                counter += 1
             }
+
+            // 最終的なファイル名を更新
+            fileName = destinationURL.lastPathComponent
+
             try FileManager.default.moveItem(at: location, to: destinationURL)
 
             // ファイルサイズ取得
