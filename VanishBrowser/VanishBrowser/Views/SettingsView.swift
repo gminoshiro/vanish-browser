@@ -14,7 +14,6 @@ struct SettingsView: View {
     @AppStorage("authEnabled") private var authEnabled: Bool = false
     @AppStorage("useBiometric") private var useBiometric: Bool = true
     @AppStorage("authPassword") private var authPassword: String = ""
-    @AppStorage("privateMode") private var privateMode: Bool = true
     @State private var showDeleteConfirmation = false
     @State private var storageUsage: (totalBytes: Int64, fileCount: Int) = (0, 0)
     @State private var availableStorage: Int64? = nil
@@ -104,11 +103,6 @@ struct SettingsView: View {
                     }
                 }
 
-                // プライバシー設定
-                Section(header: Text("プライバシー"), footer: Text("プライベートモード有効時、閲覧履歴・Cookie・キャッシュが永続化されません。")) {
-                    Toggle("プライベートモード", isOn: $privateMode)
-                }
-
                 // 検索エンジン設定
                 Section(header: Text("検索エンジン")) {
                     Picker("検索エンジン", selection: $searchEngine) {
@@ -117,23 +111,6 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                }
-
-                // 自動削除設定
-                Section(header: Text("自動削除"), footer: Text("設定した時間が経過すると、選択したデータが自動的に削除されます。")) {
-                    Picker("削除タイミング", selection: $autoDeleteService.autoDeleteMode) {
-                        ForEach(AutoDeleteMode.allCases, id: \.rawValue) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-
-                // 削除対象設定
-                Section(header: Text("削除対象")) {
-                    Toggle("閲覧履歴", isOn: $autoDeleteService.deleteBrowsingHistory)
-                    Toggle("ダウンロードファイル", isOn: $autoDeleteService.deleteDownloads)
-                    Toggle("ブックマーク", isOn: $autoDeleteService.deleteBookmarks)
                 }
 
                 // 手動削除
@@ -147,6 +124,34 @@ struct SettingsView: View {
                             Text("すべてのデータを削除")
                                 .foregroundColor(.red)
                         }
+                    }
+                }
+
+                // サポート
+                Section(header: Text("サポート")) {
+                    Button(action: {
+                        // App IDは後でApp Store Connectで確認して設定
+                        // 開発中は動作しない（App Store公開後に有効）
+                        let appID = "YOUR_APP_ID"
+                        ReviewManager.shared.openReviewPage(appID: appID)
+                    }) {
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                            Text("App Storeでレビューを書く")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                        }
+                    }
+                }
+
+                // ライセンス情報
+                Section(header: Text("ライセンス情報")) {
+                    NavigationLink(destination: LicenseView()) {
+                        Label("オープンソースライセンス", systemImage: "doc.text")
                     }
                 }
 
