@@ -244,8 +244,12 @@ class AutoDeleteService: ObservableObject {
             deletedItems.append("ブックマーク(\(bookmarks.count)件)")
         }
 
-        // 閲覧履歴を削除（WebKitのデータストア）
+        // 閲覧履歴を削除（WebKitのデータストア + Core Data）
         if deleteBrowsingHistory {
+            // Core Dataの履歴を削除
+            BrowsingHistoryManager.shared.clearHistory()
+
+            // WebKitのデータストアも削除
             clearBrowsingData()
             deletedItems.append("閲覧履歴")
         }
@@ -258,13 +262,25 @@ class AutoDeleteService: ObservableObject {
     }
 
     private func clearBrowsingData() {
-        let dataStore = WKWebsiteDataStore.default()
         let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
 
-        dataStore.fetchDataRecords(ofTypes: dataTypes) { records in
-            dataStore.removeData(ofTypes: dataTypes, for: records) {
-                print("🧹 ブラウジングデータ削除完了")
+        // デフォルトdataStoreを削除（通常タブの履歴）
+        let defaultStore = WKWebsiteDataStore.default()
+        defaultStore.fetchDataRecords(ofTypes: dataTypes) { records in
+            defaultStore.removeData(ofTypes: dataTypes, for: records) {
+                print("🧹 デフォルトストアのブラウジングデータ削除完了")
             }
+        }
+
+        // すべてのタブのWebViewのdataStoreも削除（プライベート/通常両方）
+        DispatchQueue.main.async {
+            // TabManagerを通じてすべてのタブのWebViewを取得
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ClearAllTabsData"),
+                object: nil,
+                userInfo: nil
+            )
+            print("🧹 全タブのブラウジングデータ削除リクエスト送信")
         }
     }
 
@@ -305,8 +321,12 @@ class AutoDeleteService: ObservableObject {
             deletedItems.append("ブックマーク(\(bookmarks.count)件)")
         }
 
-        // 閲覧履歴を削除（WebKitのデータストア）
+        // 閲覧履歴を削除（WebKitのデータストア + Core Data）
         if history {
+            // Core Dataの履歴を削除
+            BrowsingHistoryManager.shared.clearHistory()
+
+            // WebKitのデータストアも削除
             clearBrowsingData()
             deletedItems.append("閲覧履歴")
         }
@@ -322,10 +342,8 @@ class AutoDeleteService: ObservableObject {
     func deleteAllData() {
         print("🗑️ deleteAllData: すべてのデータを完全削除します")
 
-        deleteDownloads = true
-        deleteBookmarks = true
-        deleteBrowsingHistory = true
-        performAutoDelete()
+        // 設定を上書きせず、すべてを削除
+        performManualDelete(history: true, downloads: true, bookmarks: true)
 
         // 一時フォルダも含めてすべてのフォルダを強制削除
         DownloadService.shared.removeAllFolders()
