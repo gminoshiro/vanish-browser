@@ -66,18 +66,16 @@ class BrowserViewModel: NSObject, ObservableObject {
     @Published var readerContent: String = ""  // リーダーモードのコンテンツ
     @Published var isDesktopMode = false  // デスクトップサイト表示
 
-    let webView: WKWebView
+    var webView: WKWebView
     private var cancellables = Set<AnyCancellable>()
     private var progressObserver: NSKeyValueObservation?
     private var currentFindConfiguration: WKFindConfiguration?
     private var originalHTML: String = ""
 
     override init() {
+        // 初期ダミーWebView（後でタブのWebViewに置き換え）
         let configuration = WKWebViewConfiguration()
-
-        // プライベートモード設定を読み込み
-        let isPrivateMode = UserDefaults.standard.object(forKey: "privateMode") as? Bool ?? true
-        configuration.websiteDataStore = isPrivateMode ? .nonPersistent() : .default()
+        configuration.websiteDataStore = .nonPersistent()
 
         // メディア再生設定
         configuration.allowsInlineMediaPlayback = true // インライン再生を有効化
@@ -129,16 +127,16 @@ class BrowserViewModel: NSObject, ObservableObject {
                     let hasPlayableVideo = false;
 
                     videos.forEach(function(video) {
-                        // ビデオが存在し、URLがあればDLボタンを表示
+                        // ビデオが存在し、URLがあり、かつreadyState >= 2（メタデータ読み込み済み）の場合のみDLボタン表示
                         const videoUrl = video.src || video.currentSrc;
-                        if (videoUrl && videoUrl.startsWith('http')) {
+                        if (videoUrl && videoUrl.startsWith('http') && video.readyState >= 2) {
                             hasPlayableVideo = true;
                         } else {
                             // sourceタグもチェック
                             const sources = video.querySelectorAll('source');
                             if (sources.length > 0) {
                                 const sourceUrl = sources[0].src;
-                                if (sourceUrl && sourceUrl.startsWith('http')) {
+                                if (sourceUrl && sourceUrl.startsWith('http') && video.readyState >= 2) {
                                     hasPlayableVideo = true;
                                 }
                             }
@@ -434,10 +432,58 @@ class BrowserViewModel: NSObject, ObservableObject {
     }
 
     deinit {
+        // タイマーを停止
+        videoStoppedTimer?.invalidate()
+
         // Message handlerを削除してメモリリークを防ぐ
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDownload")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "imageLongPress")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDetected")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoStopped")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoClicked")
+
+        // オブザーバーを解除
         progressObserver?.invalidate()
+    }
+
+    func switchWebView(to newWebView: WKWebView) {
+        // 古いWebViewのオブザーバーとハンドラーを解除
+        progressObserver?.invalidate()
+        videoStoppedTimer?.invalidate()
+        videoStoppedTimer = nil
+
+        // 古いWebViewのメッセージハンドラーを削除
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDownload")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "imageLongPress")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDetected")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoStopped")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoClicked")
+
+        // 新しいWebViewに切り替え
+        webView = newWebView
+
+        // 新しいWebViewにデリゲートとオブザーバーを設定
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
+
+        // 新しいWebViewにメッセージハンドラーを追加
+        webView.configuration.userContentController.add(self, name: "videoDownload")
+        webView.configuration.userContentController.add(self, name: "imageLongPress")
+        webView.configuration.userContentController.add(self, name: "videoDetected")
+        webView.configuration.userContentController.add(self, name: "videoStopped")
+        webView.configuration.userContentController.add(self, name: "videoClicked")
+
+        progressObserver = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] webView, _ in
+            DispatchQueue.main.async {
+                self?.loadingProgress = webView.estimatedProgress
+            }
+        }
+
+        // 状態を更新
+        canGoBack = webView.canGoBack
+        canGoForward = webView.canGoForward
+        currentURL = webView.url?.absoluteString ?? ""
+        isLoading = webView.isLoading
     }
 
     func loadURL(_ urlString: String) {
@@ -712,6 +758,7 @@ extension BrowserViewModel: WKNavigationDelegate {
         DispatchQueue.main.async {
             self.currentURL = webView.url?.absoluteString ?? ""
             self.isLoading = false
+            self.loadingProgress = 0.0
 
             // 閲覧履歴に追加
             if let url = webView.url?.absoluteString,
@@ -730,6 +777,7 @@ extension BrowserViewModel: WKNavigationDelegate {
             self.loadError = error
             self.showErrorAlert = true
             self.isLoading = false
+            self.loadingProgress = 0.0
         }
     }
 
@@ -739,6 +787,7 @@ extension BrowserViewModel: WKNavigationDelegate {
             self.loadError = error
             self.showErrorAlert = true
             self.isLoading = false
+            self.loadingProgress = 0.0
         }
     }
 
