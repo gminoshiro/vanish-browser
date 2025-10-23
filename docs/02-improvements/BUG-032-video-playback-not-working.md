@@ -1,6 +1,8 @@
-# BUG-013: 動画再生できなくなっている
+# BUG-032: 動画再生できなくなっている
 
 🔴 P0 Critical | ✅ 修正完了
+
+（注：元々BUG-013として記録されていたが、BUG-013-image-download-no-extension.mdと重複していたためBUG-032に変更）
 
 ---
 
