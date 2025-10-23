@@ -7,24 +7,34 @@
 
 import Foundation
 import UIKit
+import WebKit
+import Combine
 
-struct Tab: Identifiable, Equatable {
+class Tab: Identifiable, ObservableObject, Equatable {
     let id: UUID
-    var title: String
-    var url: String
-    var snapshot: UIImage?
+    @Published var title: String
+    @Published var url: String
+    @Published var snapshot: UIImage?
+    let isPrivate: Bool
+    let webView: WKWebView
 
-    init(id: UUID = UUID(), title: String = "新規タブ", url: String = "", snapshot: UIImage? = nil) {
+    init(id: UUID = UUID(), title: String = "新規タブ", url: String = "", snapshot: UIImage? = nil, isPrivate: Bool = false) {
         self.id = id
         self.title = title
         self.url = url
         self.snapshot = snapshot
+        self.isPrivate = isPrivate
+
+        // タブごとにWKWebViewを作成
+        let configuration = WebViewConfigurator.createConfiguration(isPrivate: isPrivate)
+        self.webView = WKWebView(frame: .zero, configuration: configuration)
     }
 
     static func == (lhs: Tab, rhs: Tab) -> Bool {
         return lhs.id == rhs.id &&
                lhs.title == rhs.title &&
-               lhs.url == rhs.url
-        // snapshotは比較から除外（UIImageはEquatableではない）
+               lhs.url == rhs.url &&
+               lhs.isPrivate == rhs.isPrivate
+        // snapshotとwebViewは比較から除外
     }
 }
