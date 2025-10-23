@@ -16,7 +16,6 @@ struct BrowserView: View {
     @State private var showBookmarks = false
     @State private var showDownloads = false
     @State private var showSettings = false
-    @State private var isBookmarked = false
     @State private var showTabBar = false
     @State private var showTabManager = false
     @State private var showDownloadDialog = false
@@ -72,21 +71,6 @@ struct BrowserView: View {
 
             // URLバー
             HStack {
-                // タブボタン
-                Button(action: {
-                    showTabManager = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "square.on.square")
-                        Text("\(tabManager.activeTabs.count)")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                    }
-                    .padding(8)
-                    .background(Color(.systemGray5))
-                    .cornerRadius(8)
-                }
-
                 TextField("URLを入力またはキーワード検索", text: $urlText)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.URL)
@@ -226,78 +210,88 @@ struct BrowserView: View {
             }
 
             // ツールバー
-            HStack(spacing: 8) {
-                // 動画再生中はDLボタンを左端に追加
-                if viewModel.hasVideo {
-                    Button(action: {
-                        if let videoURL = viewModel.currentVideoURL,
-                           let fileName = viewModel.detectedMediaFileName {
-                            pendingDownloadURL = videoURL
-                            pendingDownloadFileName = fileName
-                            showDownloadDialog = true
-                        }
-                    }) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .foregroundColor(.blue)
-                            .frame(minWidth: 40, minHeight: 40)
-                    }
-                }
-
+            HStack(spacing: 6) {
+                // 戻る/進む
                 Button(action: { viewModel.goBack() }) {
                     Image(systemName: "chevron.left")
-                        .frame(minWidth: 40, minHeight: 40)
+                        .font(.title3)
+                        .frame(width: 36, height: 36)
                 }
                 .disabled(!viewModel.canGoBack)
 
                 Button(action: { viewModel.goForward() }) {
                     Image(systemName: "chevron.right")
-                        .frame(minWidth: 40, minHeight: 40)
+                        .font(.title3)
+                        .frame(width: 36, height: 36)
                 }
                 .disabled(!viewModel.canGoForward)
 
-                Button(action: { viewModel.reload() }) {
-                    Image(systemName: "arrow.clockwise")
-                        .frame(minWidth: 40, minHeight: 40)
-                }
-
                 Spacer()
 
-                Button(action: {
-                    toggleBookmark()
-                }) {
-                    Image(systemName: isBookmarked ? "book.fill" : "book")
-                        .foregroundColor(isBookmarked ? .blue : .primary)
-                        .frame(minWidth: 40, minHeight: 40)
-                }
-
-                Button(action: {
-                    showBrowsingHistory = true
-                }) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .frame(minWidth: 40, minHeight: 40)
-                }
-
+                // ダウンロード
                 Button(action: {
                     showDownloads = true
                 }) {
                     Image(systemName: "arrow.down.circle")
-                        .frame(minWidth: 40, minHeight: 40)
+                        .font(.title3)
+                        .frame(width: 36, height: 36)
                 }
 
-                Button(action: {
-                    showAutoDeleteSettings = true
-                }) {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
-                        .frame(minWidth: 40, minHeight: 40)
-                }
-
+                // その他メニュー
                 Menu {
+                    // 動画ダウンロード（動画検出時のみ）
+                    if viewModel.hasVideo {
+                        Button(action: {
+                            if let videoURL = viewModel.currentVideoURL,
+                               let fileName = viewModel.detectedMediaFileName {
+                                pendingDownloadURL = videoURL
+                                pendingDownloadFileName = fileName
+                                showDownloadDialog = true
+                            }
+                        }) {
+                            Label("動画をダウンロード", systemImage: "arrow.down.circle.fill")
+                        }
+                        Divider()
+                    }
+
+                    Button(action: {
+                        pendingBookmarkTitle = viewModel.webView.title ?? ""
+                        pendingBookmarkURL = viewModel.currentURL
+                        showBookmarkFolderSelection = true
+                    }) {
+                        Label("ブックマークに追加", systemImage: "book")
+                    }
+
+                    Button(action: {
+                        showBookmarks = true
+                    }) {
+                        Label("ブックマーク一覧", systemImage: "list.bullet")
+                    }
+
+                    Divider()
+
+                    Button(action: {
+                        showBrowsingHistory = true
+                    }) {
+                        Label("閲覧履歴", systemImage: "clock.arrow.circlepath")
+                    }
+
+                    Button(action: {
+                        if let url = URL(string: viewModel.currentURL) {
+                            shareItems = [url]
+                            showShareSheet = true
+                        }
+                    }) {
+                        Label("共有", systemImage: "square.and.arrow.up")
+                    }
+
                     Button(action: {
                         showPageSearch.toggle()
                     }) {
                         Label("ページ内検索", systemImage: "magnifyingglass")
                     }
+
+                    Divider()
 
                     Button(action: {
                         withAnimation {
@@ -310,8 +304,6 @@ struct BrowserView: View {
                         )
                     }
 
-                    Divider()
-
                     Button(action: {
                         viewModel.toggleDesktopMode()
                     }) {
@@ -321,13 +313,19 @@ struct BrowserView: View {
                         )
                     }
 
+                    Divider()
+
+                    Button(action: {
+                        showAutoDeleteSettings = true
+                    }) {
+                        Label("自動削除設定", systemImage: "trash")
+                    }
+
                     Button(action: {
                         showCookieManager = true
                     }) {
                         Label("Cookie管理", systemImage: "folder.badge.gearshape")
                     }
-
-                    Divider()
 
                     Button(action: {
                         showSettings = true
@@ -336,16 +334,31 @@ struct BrowserView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .frame(minWidth: 40, minHeight: 40)
+                        .font(.title3)
+                        .frame(width: 36, height: 36)
+                }
+
+                // タブボタン（右端）
+                Button(action: {
+                    showTabManager = true
+                }) {
+                    HStack(spacing: 2) {
+                        Image(systemName: "square.on.square")
+                            .font(.body)
+                        Text("\(tabManager.activeTabs.count)")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                    .frame(width: 36, height: 36)
                 }
             }
-            .font(.title3)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color(UIColor.systemBackground))
+            .ignoresSafeArea(.keyboard)
         }
         .onChange(of: viewModel.currentURL) { _, newURL in
             urlText = newURL
-            updateBookmarkStatus()
 
             // タブのURLを更新
             if let tabId = tabManager.currentTabId {
@@ -421,7 +434,6 @@ struct BrowserView: View {
                         url: pendingBookmarkURL,
                         folder: selectedBookmarkFolder
                     )
-                    isBookmarked = true
                     showBookmarkFolderSelection = false
                 }
             )
@@ -646,28 +658,6 @@ struct BrowserView: View {
         }
     }
 
-    private func toggleBookmark() {
-        guard let url = viewModel.webView.url?.absoluteString,
-              let title = viewModel.webView.title else { return }
-
-        if isBookmarked {
-            // 削除処理は一覧から行う
-            showBookmarks = true
-        } else {
-            // フォルダ選択ダイアログを表示
-            pendingBookmarkTitle = title
-            pendingBookmarkURL = url
-            showBookmarkFolderSelection = true
-        }
-    }
-
-    private func updateBookmarkStatus() {
-        guard let url = viewModel.webView.url?.absoluteString else {
-            isBookmarked = false
-            return
-        }
-        isBookmarked = BookmarkService.shared.isBookmarked(url: url)
-    }
 
     private func captureSnapshot(for tabId: UUID) {
         let config = WKSnapshotConfiguration()
