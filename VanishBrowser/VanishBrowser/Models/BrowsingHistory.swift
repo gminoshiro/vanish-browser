@@ -50,8 +50,10 @@ class BrowsingHistoryManager: ObservableObject {
     }
 
     func clearHistory() {
+        print("🗑️ BrowsingHistoryManager: 履歴を削除します（現在: \(history.count)件）")
         history.removeAll()
         saveHistory()
+        print("🗑️ BrowsingHistoryManager: 履歴削除完了（残り: \(history.count)件）")
     }
 
     func deleteHistoryItem(_ item: BrowsingHistoryItem) {
