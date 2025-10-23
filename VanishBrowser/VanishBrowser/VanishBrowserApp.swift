@@ -13,12 +13,21 @@ struct VanishBrowserApp: App {
     let persistenceController = PersistenceController.shared
     @State private var importedFileURL: URL?
 
+    init() {
+        // アプリ起動カウントを増やす
+        ReviewManager.shared.incrementLaunchCount()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView(importedFileURL: $importedFileURL)
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .onOpenURL { url in
                     handleIncomingFile(url: url)
+                }
+                .onAppear {
+                    // レビュー依頼チェック
+                    ReviewManager.shared.requestReviewIfAppropriate()
                 }
         }
     }
