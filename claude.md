@@ -1,151 +1,107 @@
-# VanishBrowser 開発進捗
+# VanishBrowser 開発管理
 
 **最終更新: 2025-10-23**
-
----
-
-## 🎯 現在の状態
-
 **リリース準備度: 95%**
 
-✅ **すべての既知バグ修正完了！**
-✅ **App Storeリリース準備完了！**
+---
+
+## 🚀 次にやること
+
+1. **App Store Connect登録** - アプリ情報入力、スクリーンショット
+2. **App ID設定** - [SettingsView.swift:135](VanishBrowser/VanishBrowser/Views/SettingsView.swift#L135) の`YOUR_APP_ID`を置換
+3. **最終確認** - バージョン番号、プライバシーポリシーURL
+4. **審査提出** - Archive作成 → 提出
 
 ---
 
-## 📋 次にやること（優先順位順）
+## 📋 開発ルール
 
-### 🚀 App Store提出準備（残り5%）
+### バグ発見時
+1. **起票**: `docs/02-improvements/BUG-XXX-description.md`作成
+2. **修正**: コード修正実装
+3. **ドキュメント更新**: チケットに修正内容記載
+4. **動作確認待ち**: ステータスを「要確認」に
+5. **OK確認後**: コミット&プッシュ（粒度細かく）
 
-1. **App Store Connect登録**
-   - アプリ情報入力
-   - スクリーンショットアップロード
-   - リリースノート記入
+### 機能追加時
+1. **起票**: `docs/02-improvements/FEATURE-XXX-description.md`作成
+2. **実装**: コード実装
+3. **ドキュメント更新**: チケットに実装内容記載
+4. **動作確認待ち**: ステータスを「要確認」に
+5. **OK確認後**: コミット&プッシュ（粒度細かく）
 
-2. **App ID設定**
-   - SettingsView.swift:135 の`YOUR_APP_ID`を実際のIDに置換
+### コミット
+- **粒度**: チケット単位で細かく分割
+- **メッセージ**: `fix: BUG-XXX ...` / `feat: FEATURE-XXX ...`
+- **タイミング**: 確認OKが出たらすぐプッシュ
+- **バッチ禁止**: 複数チケットをまとめてコミットしない
 
-3. **最終確認**
-   - バージョン番号更新（Info.plist）
-   - プライバシーポリシーURL設定
-   - ビルド設定がReleaseモードか確認
-
-4. **審査提出**
-   - Archive作成
-   - App Store提出
-
----
-
-## 🎉 最新セッションで完了した項目（2025-10-23）
-
-### バグ修正
-1. ✅ **BUG-030** - 設定画面の「すべてのデータを削除」で履歴が削除されない問題修正
-2. ✅ **BUG-031** - タブの×ボタンが動作しない問題修正（通常タブ・プライベートタブ両対応）
-
-### 新機能
-3. ✅ **FFmpegライセンス表示** - LGPL v2.1ライセンス情報、ソースコードリンク表示（App Store審査対応）
-4. ✅ **アプリレビュー依頼機能** - 10回目起動時に自動レビュー依頼、設定画面から手動レビュー可能
+### 作業進行
+- **止まらない**: 確認待ちでも他のタスクを進める
+- **質問する**: わからない点は正直に質問
+- **勝手に判断しない**: 仕様変更は必ず確認
+- **並行作業**: 独立したタスクは並行実行
 
 ---
 
-## ✅ 完了済み主要機能
+## ✅ 完了済み（抜粋）
 
-### 🔴 Critical/High優先度バグ（すべて修正完了）
-- BUG-030: 設定画面の履歴削除機能修正
-- BUG-031: タブ×ボタン修正
-- BUG-029: URL入力・検索で画面遷移しない問題修正
-- BUG-025: 重複ファイル名連番対応（file (1).jpg形式）
-- BUG-024: カスタムプレイヤー見切れ修正（Safe Area対応）
-- BUG-023: ツールバー見切れ修正（Safe Area対応）
+### 最新（2025-10-23）
+- [BUG-030](docs/02-improvements/BUG-030-history-not-deleted-in-settings.md) - 履歴削除修正
+- [BUG-031](docs/02-improvements/BUG-031-tab-close-button-not-working.md) - タブ×ボタン修正
+- FFmpegライセンス表示
+- レビュー依頼機能
 
-### 🟡 Medium優先度機能（すべて実装完了）
-- FEATURE-009: ツールバーレイアウト再設計（タブボタン右端移動、三点リーダメニュー化）
-- FEATURE-008: 画像スワイプナビゲーション
-- FEATURE-007: 動画ナビゲーションボタン
-- FEATURE-006: 拡張子編集無効化
-- BUG-027: キーボード追従防止
-- BUG-026: 動画DLボタン表示タイミング修正
+### Critical修正済み
+- [BUG-029](docs/02-improvements/BUG-029-url-navigation-not-working.md) - URL遷移
+- [BUG-025](docs/02-improvements/BUG-025-duplicate-filename-overwrite.md) - 重複ファイル名
+- [BUG-024](docs/02-improvements/BUG-024-custom-player-cutoff-iphone16.md) - プレイヤー見切れ
+- [BUG-023](docs/02-improvements/BUG-023-toolbar-cutoff-iphone16.md) - ツールバー見切れ
 
-### 🟢 その他の完了項目
-- HLS→MP4変換（FFmpeg使用）
-- プライベートブラウジング実装
-- 自動削除機能完成（1日/7日/30日/90日後）
-- 写真アプリ共有対応
-- パスワード設定機能
-- ブックマーク&ツールバー改善
+### 主要機能実装済み
+- [FEATURE-009](docs/02-improvements/FEATURE-009-toolbar-layout-redesign.md) - ツールバーレイアウト
+- [FEATURE-008](docs/02-improvements/FEATURE-008-image-swipe-navigation.md) - 画像スワイプナビゲーション
+- [FEATURE-007](docs/02-improvements/FEATURE-007-video-navigation-controls.md) - 動画ナビゲーション
+- [FEATURE-006](docs/02-improvements/FEATURE-006-disable-extension-edit.md) - 拡張子編集無効化
+- HLS→MP4変換（FFmpeg）
+- プライベートブラウジング
+- 自動削除（1日/7日/30日/90日）
 
 ---
 
-## 📊 動作確認状況
+## 🔧 重要ファイル
 
-### ✅ 完了している確認項目
-- [x] アプリが正常に起動する
-- [x] クラッシュしない
-- [x] メモリリークがない
-- [x] UI崩れがない（iPhone 16で確認済み）
-- [x] タブ管理が正常（×ボタン修正済み）
-- [x] ブラウジング機能が正常
-- [x] ダウンロード機能が正常
-- [x] ブックマーク機能が正常
-- [x] 履歴機能が正常（削除機能修正済み）
-- [x] プライベートモードが正常
-- [x] 自動削除が正常
+### コア
+- [BrowserView.swift](VanishBrowser/VanishBrowser/Views/BrowserView.swift) - メインUI
+- [BrowserViewModel.swift](VanishBrowser/VanishBrowser/ViewModels/BrowserViewModel.swift) - ブラウザロジック
+- [TabManager.swift](VanishBrowser/VanishBrowser/ViewModels/TabManager.swift) - タブ管理
+- [DownloadManager.swift](VanishBrowser/VanishBrowser/Services/DownloadManager.swift) - ダウンロード
+- [AutoDeleteService.swift](VanishBrowser/VanishBrowser/Services/AutoDeleteService.swift) - 自動削除
+- [ReviewManager.swift](VanishBrowser/VanishBrowser/Services/ReviewManager.swift) - レビュー依頼
+
+### UI
+- [TabManagerView.swift](VanishBrowser/VanishBrowser/Views/TabManagerView.swift) - タブ管理UI
+- [CustomVideoPlayerView.swift](VanishBrowser/VanishBrowser/Views/CustomVideoPlayerView.swift) - 動画プレーヤー
+- [SettingsView.swift](VanishBrowser/VanishBrowser/Views/SettingsView.swift) - 設定
+- [LicenseView.swift](VanishBrowser/VanishBrowser/Views/LicenseView.swift) - ライセンス
 
 ---
 
 ## 🚀 リリース手順
 
-### 1. 最終ビルド
 ```bash
-xcodebuild -project VanishBrowser.xcodeproj -scheme VanishBrowser -configuration Release
-```
+# 1. Archive作成
+Xcode > Product > Archive
 
-### 2. Archive作成
-- Xcode > Product > Archive
-- Organizer > Distribute App
-
-### 3. App Store Connect
+# 2. App Store Connect
 - アプリ情報入力
 - スクリーンショットアップロード
 - リリースノート記入
-- 価格・配信地域設定
 
-### 4. 審査提出
-- 「審査に提出」をクリック
-- 審査待ち（通常1-3日）
-
----
-
-## 📝 詳細チケットリスト
-
-詳細は以下のディレクトリを参照：
-- `docs/02-improvements/` - 各バグ・機能の詳細ドキュメント
-
-主要チケット：
-- [BUG-030](docs/02-improvements/BUG-030-history-not-deleted-in-settings.md) - 履歴削除修正
-- [BUG-031](docs/02-improvements/BUG-031-tab-close-button-not-working.md) - タブ×ボタン修正
-- [BUG-029](docs/02-improvements/BUG-029-url-navigation-not-working.md) - URL遷移修正
-- [FEATURE-009](docs/02-improvements/FEATURE-009-toolbar-layout-redesign.md) - ツールバー再設計
+# 3. 審査提出
+Organizer > Distribute App
+```
 
 ---
 
-## 🎯 重要な実装ファイル
-
-### コア機能
-- `VanishBrowser/VanishBrowser/Views/BrowserView.swift` - メインブラウザUI
-- `VanishBrowser/VanishBrowser/ViewModels/BrowserViewModel.swift` - ブラウザロジック
-- `VanishBrowser/VanishBrowser/ViewModels/TabManager.swift` - タブ管理
-- `VanishBrowser/VanishBrowser/Services/DownloadManager.swift` - ダウンロード機能
-- `VanishBrowser/VanishBrowser/Services/AutoDeleteService.swift` - 自動削除機能
-- `VanishBrowser/VanishBrowser/Services/ReviewManager.swift` - レビュー依頼機能
-
-### UI
-- `VanishBrowser/VanishBrowser/Views/TabManagerView.swift` - タブ管理UI
-- `VanishBrowser/VanishBrowser/Views/CustomVideoPlayerView.swift` - 動画プレーヤー
-- `VanishBrowser/VanishBrowser/Views/FileViewerView.swift` - ファイルビューア
-- `VanishBrowser/VanishBrowser/Views/SettingsView.swift` - 設定画面
-- `VanishBrowser/VanishBrowser/Views/LicenseView.swift` - ライセンス表示
-
----
-
-**🎉 機能実装・バグ修正は完了。App Store提出準備のみ！**
+**全機能実装完了。App Store提出準備のみ！**
