@@ -33,7 +33,7 @@ struct AuthenticationView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            if useBiometric && BiometricAuthService.shared.canUseBiometrics() {
+            if useBiometric && BiometricAuthService.shared.canUseBiometrics() && authError == nil {
                 Spacer()
                     .frame(height: 10)
 
@@ -44,8 +44,8 @@ struct AuthenticationView: View {
 
             Spacer()
 
-            // パスコード入力
-            if !useBiometric || !BiometricAuthService.shared.canUseBiometrics() {
+            // パスコード入力（生体認証失敗時も表示）
+            if !useBiometric || !BiometricAuthService.shared.canUseBiometrics() || authError != nil {
                 VStack(spacing: 0) {
                     if let error = authError {
                         Text(error)
@@ -103,10 +103,13 @@ struct AuthenticationView: View {
             if success {
                 isAuthenticated = true
             } else {
-                if let error = error {
-                    authError = error.localizedDescription
+                // 生体認証失敗時のメッセージ
+                if savedPassword.isEmpty {
+                    // パスコード未設定の場合
+                    authError = "認証に失敗しました。設定でパスコードを設定してください。"
                 } else {
-                    authError = "認証に失敗しました"
+                    // パスコード設定済みの場合はパスコード入力にフォールバック
+                    authError = "パスコードを入力してください"
                 }
             }
         }

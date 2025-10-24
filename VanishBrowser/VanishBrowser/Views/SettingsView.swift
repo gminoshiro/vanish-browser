@@ -43,38 +43,53 @@ struct SettingsView: View {
                 }
 
                 // 認証設定
-                Section(header: Text("認証"), footer: Text(authEnabled ? (useBiometric ? "生体認証が利用できない場合、パスコード認証にフォールバックします。" : "4桁の数字パスコードで認証します。") : "アプリ起動時の認証を有効にできます。")) {
+                Section(header: Text("認証"), footer: Text(authEnabled ? (useBiometric ? "生体認証が利用できない場合、パスコード認証にフォールバックします。パスコード設定が必要です。" : "4桁の数字パスコードで認証します。") : "アプリ起動時の認証を有効にできます。")) {
                     Toggle("認証を使用", isOn: $authEnabled)
-
-                    if authEnabled {
-                        Toggle("生体認証を使用", isOn: $useBiometric)
-                            .disabled(false)
-
-                        if !useBiometric {
-                            if !authPassword.isEmpty {
-                                HStack {
-                                    Text("パスコードが設定されています")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Spacer()
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                }
-
-                                Button("パスコードを変更") {
-                                    showPasscodeSettings = true
-                                }
-
-                                Button("パスコードをクリア") {
-                                    authPassword = ""
-                                }
-                                .foregroundColor(.red)
-                            } else {
-                                Button("パスコードを設定") {
-                                    showPasscodeSettings = true
-                                }
+                        .onChange(of: authEnabled) { _, newValue in
+                            if newValue && authPassword.isEmpty {
+                                // 認証ONにした時にパスコード未設定なら設定画面を表示
+                                showPasscodeSettings = true
                             }
                         }
+
+                    if authEnabled {
+                        // パスコード設定（生体認証使用時も必須）
+                        if !authPassword.isEmpty {
+                            HStack {
+                                Text("パスコードが設定されています")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            }
+
+                            Button("パスコードを変更") {
+                                showPasscodeSettings = true
+                            }
+
+                            Button("パスコードをクリア") {
+                                authPassword = ""
+                                // パスコードクリア時は生体認証もOFFにする
+                                useBiometric = false
+                            }
+                            .foregroundColor(.red)
+                        } else {
+                            Button("パスコードを設定（必須）") {
+                                showPasscodeSettings = true
+                            }
+                            .foregroundColor(.orange)
+                        }
+
+                        // 生体認証トグル（パスコード設定済みの場合のみ有効）
+                        Toggle("生体認証を使用", isOn: $useBiometric)
+                            .disabled(authPassword.isEmpty)
+                            .onChange(of: useBiometric) { _, newValue in
+                                if newValue && authPassword.isEmpty {
+                                    // パスコード未設定なら警告
+                                    useBiometric = false
+                                }
+                            }
                     }
                 }
                 // ストレージ情報
