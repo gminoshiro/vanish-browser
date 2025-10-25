@@ -70,29 +70,36 @@ struct BrowserView: View {
             }
 
             // URLバー
-            HStack {
-                TextField("URLを入力またはキーワード検索", text: $urlText)
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.URL)
-                    .autocapitalization(.none)
-                    .onSubmit {
+            if viewModel.showToolbars {
+                HStack {
+                    TextField("URLを入力またはキーワード検索", text: $urlText)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.URL)
+                        .autocapitalization(.none)
+                        .onSubmit {
+                            viewModel.loadURL(urlText)
+                            if let tabId = tabManager.currentTabId {
+                                tabManager.updateTab(tabId, url: urlText)
+                            }
+                        }
+
+                    Button(action: {
                         viewModel.loadURL(urlText)
                         if let tabId = tabManager.currentTabId {
                             tabManager.updateTab(tabId, url: urlText)
                         }
+                    }) {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(.primary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
-
-                Button(action: {
-                    viewModel.loadURL(urlText)
-                    if let tabId = tabManager.currentTabId {
-                        tabManager.updateTab(tabId, url: urlText)
-                    }
-                }) {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.title2)
+                    .buttonStyle(ScaleButtonStyle())
                 }
+                .padding()
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .padding()
 
             // ページ読み込みプログレスバー
             if viewModel.loadingProgress > 0 && viewModel.loadingProgress < 1.0 {
@@ -210,35 +217,43 @@ struct BrowserView: View {
             }
 
             // ツールバー
-            HStack(spacing: 6) {
-                // 戻る/進む
-                Button(action: { viewModel.goBack() }) {
-                    Image(systemName: "chevron.left")
-                        .font(.title3)
-                        .frame(width: 36, height: 36)
-                }
-                .disabled(!viewModel.canGoBack)
+            if viewModel.showToolbars {
+                HStack(spacing: 8) {
+                    // 戻る/進む
+                    Button(action: { viewModel.goBack() }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(viewModel.canGoBack ? .primary : .secondary.opacity(0.3))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .disabled(!viewModel.canGoBack)
 
-                Button(action: { viewModel.goForward() }) {
-                    Image(systemName: "chevron.right")
-                        .font(.title3)
-                        .frame(width: 36, height: 36)
-                }
-                .disabled(!viewModel.canGoForward)
+                    Button(action: { viewModel.goForward() }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(viewModel.canGoForward ? .primary : .secondary.opacity(0.3))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .disabled(!viewModel.canGoForward)
 
-                Spacer()
+                    Spacer()
 
-                // ダウンロード
-                Button(action: {
-                    showDownloads = true
-                }) {
-                    Image(systemName: "arrow.down.circle")
-                        .font(.title3)
-                        .frame(width: 36, height: 36)
-                }
+                    // ダウンロード
+                    Button(action: {
+                        showDownloads = true
+                    }) {
+                        Image(systemName: "arrow.down.circle")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundColor(.primary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(ScaleButtonStyle())
 
-                // その他メニュー
-                Menu {
+                    // その他メニュー
+                    Menu {
                     // 動画ダウンロード（動画検出時のみ）
                     if viewModel.hasVideo {
                         Button(action: {
@@ -334,28 +349,41 @@ struct BrowserView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .font(.title3)
-                        .frame(width: 36, height: 36)
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundColor(.primary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
 
                 // タブボタン（右端）
                 Button(action: {
-                    showTabManager = true
+                    // スナップショットを先に取得してから開く
+                    if let tabId = tabManager.currentTabId {
+                        captureSnapshot(for: tabId) {
+                            showTabManager = true
+                        }
+                    } else {
+                        showTabManager = true
+                    }
                 }) {
                     HStack(spacing: 2) {
                         Image(systemName: "square.on.square")
-                            .font(.body)
+                            .font(.system(size: 18, weight: .medium))
                         Text("\(tabManager.activeTabs.count)")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
+                            .font(.system(size: 11, weight: .semibold))
                     }
-                    .frame(width: 36, height: 36)
+                    .foregroundColor(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(ScaleButtonStyle())
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color(UIColor.systemBackground))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .ignoresSafeArea(.keyboard)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Color(UIColor.systemBackground))
-            .ignoresSafeArea(.keyboard)
         }
         .onChange(of: viewModel.currentURL) { _, newURL in
             urlText = newURL
@@ -662,13 +690,14 @@ struct BrowserView: View {
     }
 
 
-    private func captureSnapshot(for tabId: UUID) {
+    private func captureSnapshot(for tabId: UUID, completion: (() -> Void)? = nil) {
         let config = WKSnapshotConfiguration()
         config.snapshotWidth = 300 as NSNumber  // サムネイルサイズ
 
         viewModel.webView.takeSnapshot(with: config) { image, error in
             if let error = error {
                 print("❌ スナップショット取得エラー: \(error)")
+                completion?()
                 return
             }
 
@@ -679,8 +708,11 @@ struct BrowserView: View {
                     DispatchQueue.main.async {
                         self.tabManager.updateTab(tabId, snapshot: compressedImage)
                         print("✅ スナップショット保存成功: \(tabId)")
+                        completion?()
                     }
                 }
+            } else {
+                completion?()
             }
         }
     }
@@ -794,6 +826,7 @@ struct WebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let webView = viewModel.webView
         webView.uiDelegate = context.coordinator
+        webView.scrollView.delegate = context.coordinator
 
         // コンテキストメニューを完全に無効化
         webView.allowsLinkPreview = false
@@ -809,13 +842,18 @@ struct WebView: UIViewRepresentable {
         Coordinator(viewModel: viewModel, tabManager: tabManager)
     }
 
-    class Coordinator: NSObject, WKUIDelegate {
+    class Coordinator: NSObject, WKUIDelegate, UIScrollViewDelegate {
         let viewModel: BrowserViewModel
         let tabManager: TabManager
 
         init(viewModel: BrowserViewModel, tabManager: TabManager) {
             self.viewModel = viewModel
             self.tabManager = tabManager
+        }
+
+        // スクロール検出
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            viewModel.handleScroll(offset: scrollView.contentOffset.y)
         }
 
         // リンク長押しで新規タブで開く & 動画ダウンロード
@@ -916,5 +954,15 @@ struct WebView: UIViewRepresentable {
                 completionHandler(nil)
             }
         }
+    }
+}
+
+// MARK: - Button Styles
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
