@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import SwiftUI
 import UIKit
 import WebKit
 
@@ -121,5 +122,26 @@ class TabManager: ObservableObject {
                 tabs[index].snapshot = snapshot
             }
         }
+    }
+
+    func moveTabs(from source: IndexSet, to destination: Int, isPrivate: Bool) {
+        // フィルタリングされたタブ（通常またはプライベート）のみを対象に並び替え
+        var filteredTabs = tabs.filter { $0.isPrivate == isPrivate }
+        filteredTabs.move(fromOffsets: source, toOffset: destination)
+
+        // 元のtabs配列を再構築
+        var newTabs: [Tab] = []
+        var filteredIndex = 0
+
+        for tab in tabs {
+            if tab.isPrivate == isPrivate {
+                newTabs.append(filteredTabs[filteredIndex])
+                filteredIndex += 1
+            } else {
+                newTabs.append(tab)
+            }
+        }
+
+        tabs = newTabs
     }
 }
