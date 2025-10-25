@@ -11,6 +11,9 @@ struct TabManagerView: View {
     @ObservedObject var tabManager: TabManager
     @Environment(\.dismiss) var dismiss
     @State private var selectedMode: TabMode = .normal
+    @State private var draggingTab: Tab?
+    @State private var dragOffset: CGFloat = 0
+    @State private var isReorderMode: Bool = false
 
     enum TabMode: String, CaseIterable {
         case normal = "通常"
@@ -61,6 +64,16 @@ struct TabManagerView: View {
 
                     Spacer()
 
+                    // 並び替えボタン
+                    Button(action: {
+                        isReorderMode.toggle()
+                    }) {
+                        Image(systemName: isReorderMode ? "arrow.up.arrow.down.circle.fill" : "arrow.up.arrow.down.circle")
+                            .font(.system(size: 20))
+                            .foregroundColor(isReorderMode ? .blue : .primary)
+                    }
+
+                    // 新規タブボタン
                     Button(action: {
                         // 現在のモードに応じて新規タブを作成
                         tabManager.createNewTab(isPrivate: selectedMode == .private_)
@@ -74,8 +87,8 @@ struct TabManagerView: View {
 
                 // タブカード一覧
                 ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(filteredTabs) { tab in
+                    VStack(spacing: 16) {
+                        ForEach(Array(filteredTabs.enumerated()), id: \.element.id) { index, tab in
                             TabCardView(
                                 tab: tab,
                                 isSelected: tabManager.currentTabId == tab.id,
@@ -87,6 +100,37 @@ struct TabManagerView: View {
                                     tabManager.closeTab(tab.id)
                                 }
                             )
+                            .offset(y: draggingTab?.id == tab.id ? dragOffset : 0)
+                            .scaleEffect(draggingTab?.id == tab.id ? 1.05 : 1.0)
+                            .zIndex(draggingTab?.id == tab.id ? 1 : 0)
+                            .animation(.easeInOut(duration: 0.2), value: draggingTab?.id == tab.id)
+                            .if(isReorderMode) { view in
+                                view.gesture(
+                                    DragGesture()
+                                        .onChanged { value in
+                                            if draggingTab == nil {
+                                                draggingTab = tab
+                                                print("🎯 ドラッグ開始: \(tab.title)")
+                                            }
+                                            dragOffset = value.translation.height
+                                        }
+                                        .onEnded { value in
+                                            let dragDistance = value.translation.height
+                                            let itemHeight: CGFloat = 216 + 16 // カード高さ + spacing
+                                            let positions = Int(round(dragDistance / itemHeight))
+                                            print("📊 移動: distance=\(dragDistance), positions=\(positions), currentIndex=\(index)")
+
+                                            if positions != 0 {
+                                                let newIndex = max(0, min(filteredTabs.count - 1, index + positions))
+                                                print("🔀 並び替え実行: \(index) -> \(newIndex)")
+                                                tabManager.moveTabs(from: IndexSet(integer: index), to: newIndex > index ? newIndex + 1 : newIndex, isPrivate: selectedMode == .private_)
+                                            }
+
+                                            draggingTab = nil
+                                            dragOffset = 0
+                                        }
+                                )
+                            }
                         }
                     }
                     .padding()
@@ -250,6 +294,20 @@ struct TabCardView: View {
             if !tab.url.isEmpty, let url = URL(string: tab.url) {
                 ShareSheet(items: [url])
             }
+        }
+    }
+}
+
+
+// MARK: - View Extension
+
+extension View {
+    @ViewBuilder
+    func `if`<Transform: View>(_ condition: Bool, transform: (Self) -> Transform) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
         }
     }
 }
