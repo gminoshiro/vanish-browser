@@ -57,7 +57,9 @@ class BrowserViewModel: NSObject, ObservableObject {
     @Published var hasVideo = false  // 動画が検出されたか
     @Published var currentVideoURL: URL?  // 現在の動画URL
     @Published var loadError: Error?  // ページ読み込みエラー
+    @Published var showToolbars = true  // ツールバー表示状態
     private var videoStoppedTimer: Timer?  // videoStopped遅延用タイマー
+    private var lastScrollOffset: CGFloat = 0  // 前回のスクロール位置
     @Published var showErrorAlert = false  // エラーアラート表示フラグ
     @Published var loadingProgress: Double = 0.0  // ページ読み込み進捗（0.0〜1.0）
     @Published var searchMatchCount: Int = 0  // 検索結果のマッチ数
@@ -993,5 +995,26 @@ extension BrowserViewModel: WKUIDelegate {
     private func isVideoURL(_ url: URL) -> Bool {
         let videoExtensions = ["mp4", "mov", "avi", "mkv", "webm", "m3u8"]
         return videoExtensions.contains(url.pathExtension.lowercased())
+    }
+
+    // スクロール検出でツールバー表示/非表示を制御
+    func handleScroll(offset: CGFloat) {
+        let threshold: CGFloat = 10
+        let delta = offset - lastScrollOffset
+
+        // 下スクロール（コンテンツが上に移動）= ツールバーを隠す
+        if delta > threshold && showToolbars {
+            DispatchQueue.main.async {
+                self.showToolbars = false
+            }
+        }
+        // 上スクロール（コンテンツが下に移動）= ツールバーを表示
+        else if delta < -threshold && !showToolbars {
+            DispatchQueue.main.async {
+                self.showToolbars = true
+            }
+        }
+
+        lastScrollOffset = offset
     }
 }
