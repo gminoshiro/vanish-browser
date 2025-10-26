@@ -34,46 +34,47 @@ struct CustomVideoPlayerView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-            // カスタムビデオプレーヤー（AVPlayerLayerを直接使用）
-            CustomAVPlayerView(player: playerViewModel.player)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    toggleControls()
-                }
-
-            // カスタムコントロール
-            if showControls {
-                VStack(spacing: 0) {
-                    // 上部: タイトルと閉じるボタン
-                    HStack {
-                        Text(videoFileName)
-                            .foregroundColor(.white)
-                            .font(.headline)
-                            .lineLimit(1)
-
-                        Spacer()
-
-                        Button(action: {
-                            isPresented = false
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 32))
-                                .foregroundColor(.white)
-                        }
+                // カスタムビデオプレーヤー（AVPlayerLayerを直接使用）
+                CustomAVPlayerView(player: playerViewModel.player)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        toggleControls()
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 60)
-                    .padding(.bottom, 16)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.black.opacity(0.7), Color.clear]),
-                            startPoint: .top,
-                            endPoint: .bottom
+
+                // カスタムコントロール
+                if showControls {
+                    VStack(spacing: 0) {
+                        // 上部: タイトルと閉じるボタン
+                        HStack {
+                            Text(videoFileName)
+                                .foregroundColor(.white)
+                                .font(.headline)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            Button(action: {
+                                isPresented = false
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, geometry.safeAreaInsets.top + 16)
+                        .padding(.bottom, 16)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.black.opacity(0.7), Color.clear]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
                         )
-                    )
 
                     Spacer()
 
@@ -194,10 +195,11 @@ struct CustomVideoPlayerView: View {
                             endPoint: .bottom
                         )
                     )
-                    .padding(.bottom, 40)
+                    .padding(.bottom, geometry.safeAreaInsets.bottom + 20)
                 }
                 .transition(.opacity)
             }
+        }
         }
         .onAppear {
             playerViewModel.play()
