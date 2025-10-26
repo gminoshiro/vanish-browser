@@ -425,13 +425,8 @@ class BrowserViewModel: NSObject, ObservableObject {
             }
         }
 
-        // 初期ページをロード（設定された検索エンジン）
-        let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "DuckDuckGo"
-        if let engine = SearchEngine(rawValue: searchEngineString) {
-            loadURL(engine.homeURL)
-        } else {
-            loadURL("https://duckduckgo.com")
-        }
+        // 初期ページは読み込まない（ホーム画面を表示）
+        // currentURLを空のままにすることでホーム画面が表示される
     }
 
     deinit {
