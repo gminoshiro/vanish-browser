@@ -65,7 +65,7 @@ struct CustomVideoPlayerView: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 16)
+                    .padding(.top, 60)
                     .padding(.bottom, 16)
                     .background(
                         LinearGradient(
@@ -74,7 +74,6 @@ struct CustomVideoPlayerView: View {
                             endPoint: .bottom
                         )
                     )
-                    .safeAreaPadding(.top)
 
                     Spacer()
 
@@ -195,7 +194,7 @@ struct CustomVideoPlayerView: View {
                             endPoint: .bottom
                         )
                     )
-                    .safeAreaPadding(.bottom)
+                    .padding(.bottom, 40)
                 }
                 .transition(.opacity)
             }
