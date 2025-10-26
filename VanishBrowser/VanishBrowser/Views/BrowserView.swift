@@ -133,12 +133,35 @@ struct BrowserView: View {
             // WebView
             // ダウンロードプログレス表示
             ZStack {
+                // ホーム画面（新規タブ時）
+                if viewModel.currentURL.isEmpty || viewModel.currentURL == "about:blank" {
+                    HomeView(
+                        onSearch: { query in
+                            viewModel.loadURL(query)
+                            urlText = query
+                        },
+                        onBookmarkTap: { url in
+                            viewModel.loadURL(url)
+                            urlText = url
+                        }
+                    )
+                    .onTapGesture {
+                        // ホーム画面をタップでツールバー表示切り替え
+                        withAnimation {
+                            viewModel.showToolbars.toggle()
+                        }
+                    }
+                    .transition(.opacity)
+                    .zIndex(2)
+                }
+
                 // 通常のWebViewまたはリーダーモード
                 if viewModel.isReaderMode {
                     ReaderModeView(htmlContent: viewModel.readerContent)
                         .transition(.opacity)
                 } else {
                     WebView(viewModel: viewModel, tabManager: tabManager)
+                        .opacity(viewModel.currentURL.isEmpty || viewModel.currentURL == "about:blank" ? 0 : 1)
                 }
 
                 // エラーページ表示
@@ -388,6 +411,13 @@ struct BrowserView: View {
         .onChange(of: viewModel.currentURL) { _, newURL in
             urlText = newURL
 
+            // ホーム画面（URLが空）の時は初期状態でツールバー非表示
+            if newURL.isEmpty || newURL == "about:blank" {
+                viewModel.showToolbars = false
+            } else {
+                viewModel.showToolbars = true
+            }
+
             // タブのURLを更新
             if let tabId = tabManager.currentTabId {
                 tabManager.updateTab(tabId, url: newURL)
@@ -411,13 +441,8 @@ struct BrowserView: View {
                     viewModel.loadURL(tab.url)
                     urlText = tab.url
                 } else {
-                    // 新規タブの場合は初期ページ（検索エンジン）をロード
-                    let searchEngineString = UserDefaults.standard.string(forKey: "searchEngine") ?? "DuckDuckGo"
-                    if let engine = SearchEngine(rawValue: searchEngineString) {
-                        viewModel.loadURL(engine.homeURL)
-                    } else {
-                        viewModel.loadURL("https://duckduckgo.com")
-                    }
+                    // 新規タブの場合はホーム画面を表示（URLを空のまま）
+                    viewModel.currentURL = ""
                     urlText = ""
                 }
             }
@@ -691,6 +716,17 @@ struct BrowserView: View {
 
 
     private func captureSnapshot(for tabId: UUID, completion: (() -> Void)? = nil) {
+        // ホーム画面の場合は専用のスナップショットを生成
+        if viewModel.currentURL.isEmpty || viewModel.currentURL == "about:blank" {
+            let homeSnapshot = createHomeScreenSnapshot()
+            DispatchQueue.main.async {
+                self.tabManager.updateTab(tabId, snapshot: homeSnapshot)
+                print("✅ ホーム画面スナップショット保存成功: \(tabId)")
+                completion?()
+            }
+            return
+        }
+
         let config = WKSnapshotConfiguration()
         config.snapshotWidth = 300 as NSNumber  // サムネイルサイズ
 
@@ -714,6 +750,39 @@ struct BrowserView: View {
             } else {
                 completion?()
             }
+        }
+    }
+
+    // ホーム画面のスナップショットを生成
+    private func createHomeScreenSnapshot() -> UIImage {
+        let size = CGSize(width: 300, height: 400)
+        let renderer = UIGraphicsImageRenderer(size: size)
+
+        return renderer.image { context in
+            // ダークグレー背景
+            UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1.0).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+
+            // "Vanish" テキスト - 白のみ
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 32, weight: .semibold),
+                .foregroundColor: UIColor.white
+            ]
+            let text = "Vanish"
+            let textSize = text.size(withAttributes: attributes)
+            let textRect = CGRect(
+                x: (size.width - textSize.width) / 2,
+                y: 60,
+                width: textSize.width,
+                height: textSize.height
+            )
+            text.draw(in: textRect, withAttributes: attributes)
+
+            // 検索バー風の図形
+            let searchBarRect = CGRect(x: 30, y: 120, width: size.width - 60, height: 44)
+            let path = UIBezierPath(roundedRect: searchBarRect, cornerRadius: 12)
+            UIColor.white.withAlphaComponent(0.1).setFill()
+            path.fill()
         }
     }
 
