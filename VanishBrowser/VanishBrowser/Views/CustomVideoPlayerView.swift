@@ -34,19 +34,22 @@ struct CustomVideoPlayerView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color.black.ignoresSafeArea()
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-                // カスタムビデオプレーヤー（AVPlayerLayerを直接使用）
-                CustomAVPlayerView(player: playerViewModel.player)
-                    .ignoresSafeArea()
-                    .onTapGesture {
+            // カスタムビデオプレーヤー（AVPlayerLayerを直接使用）
+            CustomAVPlayerView(player: playerViewModel.player)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
                         toggleControls()
                     }
+                }
 
-                // カスタムコントロール
-                if showControls {
+            // カスタムコントロール
+            if showControls {
+                GeometryReader { geometry in
                     VStack(spacing: 0) {
                         // 上部: タイトルと閉じるボタン
                         HStack {
@@ -76,7 +79,7 @@ struct CustomVideoPlayerView: View {
                             )
                         )
 
-                    Spacer()
+                        Spacer()
 
                     // 下部: 再生コントロール
                     VStack(spacing: 12) {
@@ -196,10 +199,10 @@ struct CustomVideoPlayerView: View {
                         )
                     )
                     .padding(.bottom, geometry.safeAreaInsets.bottom + 20)
+                    }
                 }
                 .transition(.opacity)
             }
-        }
         }
         .onAppear {
             playerViewModel.play()
@@ -236,9 +239,8 @@ struct CustomVideoPlayerView: View {
     }
 
     private func toggleControls() {
-        withAnimation {
-            showControls.toggle()
-        }
+        hideControlsTask?.cancel()
+        showControls.toggle()
         if showControls {
             scheduleHideControls()
         }
