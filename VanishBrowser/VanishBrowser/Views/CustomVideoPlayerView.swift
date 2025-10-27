@@ -34,22 +34,19 @@ struct CustomVideoPlayerView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-            // カスタムビデオプレーヤー（AVPlayerLayerを直接使用）
-            CustomAVPlayerView(player: playerViewModel.player)
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                // カスタムビデオプレーヤー（AVPlayerLayerを直接使用）
+                CustomAVPlayerView(player: playerViewModel.player)
+                    .ignoresSafeArea()
+                    .onTapGesture {
                         toggleControls()
                     }
-                }
 
-            // カスタムコントロール
-            if showControls {
-                GeometryReader { geometry in
+                // カスタムコントロール
+                if showControls {
                     VStack(spacing: 0) {
                         // 上部: タイトルと閉じるボタン
                         HStack {
@@ -69,7 +66,7 @@ struct CustomVideoPlayerView: View {
                             }
                         }
                         .padding(.horizontal, 20)
-                        .padding(.top, geometry.safeAreaInsets.top + 16)
+                        .padding(.top, max(geometry.safeAreaInsets.top, 16))
                         .padding(.bottom, 16)
                         .background(
                             LinearGradient(
@@ -81,127 +78,127 @@ struct CustomVideoPlayerView: View {
 
                         Spacer()
 
-                    // 下部: 再生コントロール
-                    VStack(spacing: 12) {
-                        // シークバー
-                        HStack(spacing: 8) {
-                            Text(formatTime(playerViewModel.currentTime))
-                                .foregroundColor(.white)
-                                .font(.caption)
-                                .monospacedDigit()
+                        // 下部: 再生コントロール
+                        VStack(spacing: 12) {
+                            // シークバー
+                            HStack(spacing: 8) {
+                                Text(formatTime(playerViewModel.currentTime))
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                                    .monospacedDigit()
 
-                            Slider(
-                                value: Binding(
-                                    get: { playerViewModel.currentTime },
-                                    set: { playerViewModel.seek(to: $0) }
-                                ),
-                                in: 0...max(playerViewModel.duration, 1)
-                            )
-                            .accentColor(.white)
+                                Slider(
+                                    value: Binding(
+                                        get: { playerViewModel.currentTime },
+                                        set: { playerViewModel.seek(to: $0) }
+                                    ),
+                                    in: 0...max(playerViewModel.duration, 1)
+                                )
+                                .accentColor(.white)
 
-                            Text(formatTime(playerViewModel.duration))
-                                .foregroundColor(.white)
-                                .font(.caption)
-                                .monospacedDigit()
-                        }
-                        .padding(.horizontal, 20)
+                                Text(formatTime(playerViewModel.duration))
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                                    .monospacedDigit()
+                            }
+                            .padding(.horizontal, 20)
 
-                        // 再生ボタンとダウンロードボタン
-                        HStack(spacing: 30) {
-                            // ダウンロードボタン（DL前のみ表示）
-                            if showDownloadButton {
+                            // 再生ボタンとダウンロードボタン
+                            HStack(spacing: 24) {
+                                // ダウンロードボタン（DL前のみ表示）
+                                if showDownloadButton {
+                                    Button(action: {
+                                        print("📥 DLボタン押下: \(videoFileName)")
+                                        print("📥 URL: \(videoURL.absoluteString)")
+                                        // プレーヤーを閉じずにダイアログを表示
+                                        playerViewModel.pause()
+                                        showDownloadDialog = true
+                                    }) {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                            .font(.system(size: 32))
+                                            .foregroundColor(.white)
+                                            .background(
+                                                Circle()
+                                                    .fill(Color.blue)
+                                                    .frame(width: 36, height: 36)
+                                            )
+                                    }
+                                }
+
+                                Spacer()
+
+                                // 巻き戻しボタン
                                 Button(action: {
-                                    print("📥 DLボタン押下: \(videoFileName)")
-                                    print("📥 URL: \(videoURL.absoluteString)")
-                                    // プレーヤーを閉じずにダイアログを表示
-                                    playerViewModel.pause()
-                                    showDownloadDialog = true
+                                    playerViewModel.skipBackward()
                                 }) {
-                                    Image(systemName: "arrow.down.circle.fill")
-                                        .font(.system(size: 40))
+                                    Image(systemName: "gobackward.10")
+                                        .font(.system(size: 32))
                                         .foregroundColor(.white)
-                                        .background(
-                                            Circle()
-                                                .fill(Color.blue)
-                                                .frame(width: 44, height: 44)
-                                        )
                                 }
-                            }
 
-                            Spacer()
-
-                            // 巻き戻しボタン
-                            Button(action: {
-                                playerViewModel.skipBackward()
-                            }) {
-                                Image(systemName: "gobackward.10")
-                                    .font(.system(size: 36))
-                                    .foregroundColor(.white)
-                            }
-
-                            // 再生/一時停止ボタン
-                            Button(action: {
-                                playerViewModel.togglePlayPause()
-                            }) {
-                                Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.white)
-                            }
-
-                            // 早送りボタン
-                            Button(action: {
-                                playerViewModel.skipForward()
-                            }) {
-                                Image(systemName: "goforward.10")
-                                    .font(.system(size: 36))
-                                    .foregroundColor(.white)
-                            }
-
-                            Spacer()
-
-                            // その他メニュー
-                            Menu {
+                                // 再生/一時停止ボタン
                                 Button(action: {
-                                    playerViewModel.changeSpeed(0.5)
+                                    playerViewModel.togglePlayPause()
                                 }) {
-                                    Label("0.5x", systemImage: "speedometer")
+                                    Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
+                                        .font(.system(size: 36))
+                                        .foregroundColor(.white)
                                 }
+
+                                // 早送りボタン
                                 Button(action: {
-                                    playerViewModel.changeSpeed(1.0)
+                                    playerViewModel.skipForward()
                                 }) {
-                                    Label("1.0x (標準)", systemImage: "speedometer")
+                                    Image(systemName: "goforward.10")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(.white)
                                 }
-                                Button(action: {
-                                    playerViewModel.changeSpeed(1.5)
-                                }) {
-                                    Label("1.5x", systemImage: "speedometer")
+
+                                Spacer()
+
+                                // その他メニュー
+                                Menu {
+                                    Button(action: {
+                                        playerViewModel.changeSpeed(0.5)
+                                    }) {
+                                        Label("0.5x", systemImage: "speedometer")
+                                    }
+                                    Button(action: {
+                                        playerViewModel.changeSpeed(1.0)
+                                    }) {
+                                        Label("1.0x (標準)", systemImage: "speedometer")
+                                    }
+                                    Button(action: {
+                                        playerViewModel.changeSpeed(1.5)
+                                    }) {
+                                        Label("1.5x", systemImage: "speedometer")
+                                    }
+                                    Button(action: {
+                                        playerViewModel.changeSpeed(2.0)
+                                    }) {
+                                        Label("2.0x", systemImage: "speedometer")
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.white)
+                                        .frame(width: 36, height: 36)
                                 }
-                                Button(action: {
-                                    playerViewModel.changeSpeed(2.0)
-                                }) {
-                                    Label("2.0x", systemImage: "speedometer")
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis")
-                                    .font(.system(size: 28))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
                             }
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20))
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
-                    }
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.7)]),
-                            startPoint: .top,
-                            endPoint: .bottom
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.7)]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
                         )
-                    )
-                    .padding(.bottom, geometry.safeAreaInsets.bottom + 20)
                     }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .transition(.opacity)
                 }
-                .transition(.opacity)
             }
         }
         .onAppear {
@@ -239,8 +236,9 @@ struct CustomVideoPlayerView: View {
     }
 
     private func toggleControls() {
-        hideControlsTask?.cancel()
-        showControls.toggle()
+        withAnimation {
+            showControls.toggle()
+        }
         if showControls {
             scheduleHideControls()
         }
