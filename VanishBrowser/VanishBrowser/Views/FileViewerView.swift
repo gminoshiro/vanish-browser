@@ -44,8 +44,8 @@ struct FileViewerView: View {
         } else if let image = image {
             imageView(image: image)
         } else if showCustomVideoPlayer {
-            // カスタムプレーヤーはfullScreenCoverで表示されるので空表示
-            Color.black
+            // カスタムプレーヤーはfullScreenCoverで表示されるので透明表示
+            Color.clear
         } else {
             QuickLookView(url: fileURL)
         }
@@ -163,7 +163,13 @@ struct FileViewerView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(Color.black.opacity(0.8), for: .navigationBar)
         }
-        .fullScreenCover(isPresented: $showCustomVideoPlayer) {
+        .fullScreenCover(isPresented: $showCustomVideoPlayer, onDismiss: {
+            // 動画プレーヤーが閉じられたら、少し待ってからFileViewerViewも閉じる
+            print("🎬 動画プレーヤーが閉じられました。0.1秒後にFileViewerViewも閉じます。")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                dismiss()
+            }
+        }) {
             CustomVideoPlayerView(
                 videoURL: fileURL,
                 videoFileName: file.fileName ?? "無題",
