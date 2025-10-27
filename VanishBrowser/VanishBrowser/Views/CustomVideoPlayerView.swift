@@ -18,6 +18,7 @@ struct CustomVideoPlayerView: View {
     @State private var showControls = true
     @State private var hideControlsTask: Task<Void, Never>?
     @State private var showDownloadDialog = false
+    @State private var showShareSheet = false
 
     init(videoURL: URL, videoFileName: String, showDownloadButton: Bool = true, isPresented: Binding<Bool>) {
         print("🎬 CustomVideoPlayerView初期化")
@@ -48,21 +49,28 @@ struct CustomVideoPlayerView: View {
                 // カスタムコントロール
                 if showControls {
                     VStack(spacing: 0) {
-                        // 上部: タイトルと閉じるボタン
+                        // 上部: 閉じるボタン（左上）と共有ボタン（右上、DL済みのみ）
                         HStack {
-                            Text(videoFileName)
-                                .foregroundColor(.white)
-                                .font(.headline)
-                                .lineLimit(1)
-
-                            Spacer()
-
+                            // 左上: ×ボタン
                             Button(action: {
                                 isPresented = false
                             }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 32))
                                     .foregroundColor(.white)
+                            }
+
+                            Spacer()
+
+                            // 右上: 共有ボタン（DL済み動画のみ表示）
+                            if !showDownloadButton {  // DL済み動画（showDownloadButton=falseの場合）
+                                Button(action: {
+                                    showShareSheet = true
+                                }) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 28))
+                                        .foregroundColor(.white)
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -232,6 +240,9 @@ struct CustomVideoPlayerView: View {
                     isPresented = false
                 }
             )
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: [videoURL])
         }
     }
 
