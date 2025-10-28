@@ -19,6 +19,7 @@ struct CustomVideoPlayerView: View {
     @State private var hideControlsTask: Task<Void, Never>?
     @State private var showDownloadDialog = false
     @State private var showShareSheet = false
+    @State private var downloadFileName: String
 
     init(videoURL: URL, videoFileName: String, showDownloadButton: Bool = true, isPresented: Binding<Bool>) {
         print("🎬 CustomVideoPlayerView初期化")
@@ -32,6 +33,7 @@ struct CustomVideoPlayerView: View {
         self.showDownloadButton = showDownloadButton
         self._isPresented = isPresented
         self._playerViewModel = StateObject(wrappedValue: VideoPlayerViewModel(url: videoURL))
+        self._downloadFileName = State(initialValue: videoFileName)
     }
 
     var body: some View {
@@ -218,15 +220,17 @@ struct CustomVideoPlayerView: View {
         }
         .sheet(isPresented: $showDownloadDialog) {
             DownloadDialogView(
-                fileName: .constant(videoFileName),
+                fileName: $downloadFileName,
                 videoURL: videoURL,
                 onDownload: { fileName, folder in
                     // 通常ダウンロード
+                    print("📥 ダウンロード開始 - 変更されたファイル名: \(fileName)")
                     DownloadManager.shared.startDownload(url: videoURL, fileName: fileName, folder: folder)
                     isPresented = false
                 },
                 onHLSDownload: { quality, format, fileName, folder in
                     // HLSダウンロード
+                    print("📥 HLSダウンロード開始 - 変更されたファイル名: \(fileName)")
                     NotificationCenter.default.post(
                         name: NSNotification.Name("StartHLSDownload"),
                         object: nil,
