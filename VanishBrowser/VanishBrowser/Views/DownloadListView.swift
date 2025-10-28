@@ -8,6 +8,7 @@
 import SwiftUI
 import QuickLook
 import AVFoundation
+import Combine
 
 enum SortOption: String, CaseIterable {
     case name = "名前"
@@ -17,6 +18,7 @@ enum SortOption: String, CaseIterable {
 
 struct DownloadListView: View {
     @Environment(\.dismiss) var dismiss
+    @StateObject private var viewModel = DownloadListViewModel()
     @State private var downloads: [DownloadedFile] = []
     @State private var folders: [String] = []
     @State private var selectedFile: DownloadedFile?
@@ -385,10 +387,11 @@ struct DownloadListView: View {
                     onSelect: { folder in
                         if let file = selectedFile {
                             if DownloadService.shared.moveFile(file, toFolder: folder) {
+                                // 強制的にViewを再描画
+                                viewModel.refresh()
                                 loadDownloads()
                             }
                         }
-                        showFolderPicker = false
                     }
                 )
             }
@@ -770,8 +773,10 @@ struct FolderPickerForMoveView: View {
             List {
                 // ホーム選択肢
                 Button(action: {
-                    onSelect("")
                     dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        onSelect("")
+                    }
                 }) {
                     HStack {
                         Image(systemName: "house.fill")
@@ -784,8 +789,10 @@ struct FolderPickerForMoveView: View {
                 // フォルダ一覧
                 ForEach(folders, id: \.self) { folder in
                     Button(action: {
-                        onSelect(folder)
                         dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            onSelect(folder)
+                        }
                     }) {
                         HStack {
                             Image(systemName: "folder.fill")
@@ -840,6 +847,15 @@ struct FolderPickerForMoveView: View {
             loadFolders()
             newFolderName = ""
         }
+    }
+}
+
+// ViewModelでView更新をトリガー
+class DownloadListViewModel: ObservableObject {
+    @Published var updateTrigger = false
+
+    func refresh() {
+        updateTrigger.toggle()
     }
 }
 

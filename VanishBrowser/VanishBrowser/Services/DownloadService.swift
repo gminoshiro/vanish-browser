@@ -435,15 +435,22 @@ class DownloadService {
         let oldAbsolutePath = getAbsolutePath(from: relativePath)
         let oldURL = URL(fileURLWithPath: oldAbsolutePath)
         let fileName = oldURL.lastPathComponent
-        let newFolderURL = downloadsDirectory.appendingPathComponent(folderName, isDirectory: true)
 
-        // フォルダが存在しない場合は作成
-        if !fileManager.fileExists(atPath: newFolderURL.path) {
-            do {
-                try fileManager.createDirectory(at: newFolderURL, withIntermediateDirectories: true)
-            } catch {
-                print("❌ フォルダ作成エラー: \(error)")
-                return false
+        // ホーム（空文字列）の場合はdownloadsDirectoryを直接使用
+        let newFolderURL: URL
+        if folderName.isEmpty {
+            newFolderURL = downloadsDirectory
+        } else {
+            newFolderURL = downloadsDirectory.appendingPathComponent(folderName, isDirectory: true)
+
+            // フォルダが存在しない場合は作成
+            if !fileManager.fileExists(atPath: newFolderURL.path) {
+                do {
+                    try fileManager.createDirectory(at: newFolderURL, withIntermediateDirectories: true)
+                } catch {
+                    print("❌ フォルダ作成エラー: \(error)")
+                    return false
+                }
             }
         }
 
@@ -452,11 +459,18 @@ class DownloadService {
         do {
             try fileManager.moveItem(at: oldURL, to: newURL)
 
-            // Core Dataを更新（相対パスに変換して保存）
+            // Core Dataを更新（相対パスとフォルダ名を保存）
             file.filePath = getRelativePath(from: newURL.path)
+            file.folder = folderName.isEmpty ? nil : folderName
+
+            // 変更を即座に反映
+            viewContext.processPendingChanges()
             try viewContext.save()
 
-            print("📦 移動成功: \(relativePath) -> \(file.filePath ?? "nil")")
+            // 保存後に再度processPendingChangesを呼んで確実に反映
+            viewContext.processPendingChanges()
+
+            print("📦 移動成功: \(relativePath) -> \(file.filePath ?? "nil"), folder: \(file.folder ?? "nil")")
             return true
         } catch {
             print("❌ 移動エラー: \(error)")
