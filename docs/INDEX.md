@@ -36,16 +36,16 @@
 
 ## 🐛 完了済みチケット
 
-完了したバグ修正・機能追加は [02-improvements/completed/](02-improvements/completed/) を参照してください。
+完了したバグ修正・機能追加は [04-improvements/completed/](04-improvements/completed/) を参照してください。
 
 主要な完了済みチケット：
-- [BUG-036](02-improvements/completed/BUG-036-video-player-controls-cutoff-iphone16.md) - カスタム動画プレーヤーのコントロール見切れ修正
-- [BUG-035](02-improvements/completed/BUG-035-biometric-fallback-passcode.md) - 生体認証フォールバック
-- [BUG-033](02-improvements/completed/BUG-033-private-browsing-history-saved.md) - プライベートブラウザ履歴保存
-- [BUG-034](02-improvements/completed/BUG-034-tab-toggle-wrong-on-private.md) - タブトグル
-- [FEATURE-010](02-improvements/completed/FEATURE-010-share-extension.md) - 共有拡張機能
-- [FEATURE-009](02-improvements/completed/FEATURE-009-toolbar-layout-redesign.md) - ツールバーレイアウト
-- [FEATURE-007/008](02-improvements/completed/FEATURE-007-video-navigation-controls.md) - 動画/画像ナビゲーション
+- [BUG-036](04-improvements/completed/BUG-036-video-player-controls-cutoff-iphone16.md) - カスタム動画プレーヤーのコントロール見切れ修正
+- [BUG-035](04-improvements/completed/BUG-035-biometric-fallback-passcode.md) - 生体認証フォールバック
+- [BUG-033](04-improvements/completed/BUG-033-private-browsing-history-saved.md) - プライベートブラウザ履歴保存
+- [BUG-034](04-improvements/completed/BUG-034-tab-toggle-wrong-on-private.md) - タブトグル
+- [FEATURE-010](04-improvements/completed/FEATURE-010-share-extension.md) - 共有拡張機能
+- [FEATURE-009](04-improvements/completed/FEATURE-009-toolbar-layout-redesign.md) - ツールバーレイアウト
+- [FEATURE-007/008](04-improvements/completed/FEATURE-007-video-navigation-controls.md) - 動画/画像ナビゲーション
 
 ---
 
@@ -62,11 +62,11 @@ docs/
 │   ├── setup.md
 │   ├── tech-stack.md
 │   └── test-plan.md
-├── 02-improvements/            # バグ・機能チケット
-│   └── completed/              # 完了済みチケット
-└── 03-launch/                  # リリース関連
-    ├── app-store-listing.md
-    └── privacy-policy.md
+├── 03-launch/                  # リリース関連
+│   ├── app-store-listing.md
+│   └── privacy-policy.md
+└── 04-improvements/            # バグ・機能チケット
+    └── completed/              # 完了済みチケット
 ```
 
 ---

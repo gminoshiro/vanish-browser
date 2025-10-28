@@ -24,14 +24,14 @@
 ## 📋 開発ルール
 
 ### バグ発見時
-1. **起票**: `docs/02-improvements/BUG-XXX-description.md`作成
+1. **起票**: `docs/04-improvements/BUG-XXX-description.md`作成
 2. **修正**: コード修正実装
 3. **ドキュメント更新**: チケットに修正内容記載
 4. **動作確認待ち**: ステータスを「要確認」に
 5. **OK確認後**: コミット&プッシュ（粒度細かく）
 
 ### 機能追加時
-1. **起票**: `docs/02-improvements/FEATURE-XXX-description.md`作成
+1. **起票**: `docs/04-improvements/FEATURE-XXX-description.md`作成
 2. **実装**: コード実装
 3. **ドキュメント更新**: チケットに実装内容記載
 4. **動作確認待ち**: ステータスを「要確認」に
