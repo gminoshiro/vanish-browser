@@ -772,6 +772,18 @@ extension BrowserViewModel: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         print("Navigation failed: \(error.localizedDescription)")
+
+        // エラー -999 はナビゲーションがキャンセルされただけなので無視
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+            print("ℹ️ Navigation cancelled (expected behavior)")
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.loadingProgress = 0.0
+            }
+            return
+        }
+
         DispatchQueue.main.async {
             self.loadError = error
             self.showErrorAlert = true
@@ -782,6 +794,18 @@ extension BrowserViewModel: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         print("Provisional navigation failed: \(error.localizedDescription)")
+
+        // エラー -999 はナビゲーションがキャンセルされただけなので無視
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+            print("ℹ️ Provisional navigation cancelled (expected behavior)")
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.loadingProgress = 0.0
+            }
+            return
+        }
+
         DispatchQueue.main.async {
             self.loadError = error
             self.showErrorAlert = true
