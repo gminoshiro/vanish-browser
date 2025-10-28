@@ -24,12 +24,15 @@ struct FileViewerView: View {
     @State private var isLoading = true
     @State private var showCustomVideoPlayer = false  // カスタムプレーヤー表示用
     @State private var currentFile: DownloadedFile
+    @State private var showToolbar = true  // ツールバー表示/非表示
+    @State private var currentImageIndex: Int = 0  // 現在の画像インデックス
 
     init(file: DownloadedFile, allFiles: [DownloadedFile]? = nil, currentIndex: Int? = nil) {
         self.file = file
         self.allFiles = allFiles
         self.currentIndex = currentIndex
         self._currentFile = State(initialValue: file)
+        self._currentImageIndex = State(initialValue: currentIndex ?? 0)
         print("🎬 FileViewerView初期化: \(file.fileName ?? "無名")")
         print("🎬 filePath: \(file.filePath ?? "nil")")
     }
@@ -53,14 +56,25 @@ struct FileViewerView: View {
 
     private func imageView(image: UIImage) -> some View {
         GeometryReader { geometry in
-            ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: geometry.size.width)
-                    .scaleEffect(currentScale)
-                    .gesture(magnificationGesture)
-                    .gesture(doubleTapGesture)
+            TabView(selection: $currentImageIndex) {
+                ForEach(Array((allFiles ?? [currentFile]).enumerated()), id: \.offset) { index, file in
+                    if isImageFile(file) {
+                        ImagePageView(file: file)
+                            .tag(index)
+                            .onTapGesture {
+                                withAnimation {
+                                    showToolbar.toggle()
+                                }
+                            }
+                    }
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea()
+            .onChange(of: currentImageIndex) { newIndex in
+                if let allFiles = allFiles, newIndex < allFiles.count {
+                    currentFile = allFiles[newIndex]
+                }
             }
         }
     }
@@ -102,66 +116,52 @@ struct FileViewerView: View {
     }
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color.black.ignoresSafeArea()
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-                contentView
+            contentView
 
-                // ナビゲーションボタン（動画・画像のみ、複数ファイルがある場合）
-                if let allFiles = allFiles, let currentIndex = currentIndex, allFiles.count > 1,
-                   isMediaFile(currentFile) {
+            // ツールバー（画像のみ、タップで表示/非表示）
+            if showToolbar && isImageFile(currentFile) {
+                VStack {
+                    // 上部ツールバー
                     HStack {
-                        // 前へボタン
-                        if currentIndex > 0 {
-                            Button(action: navigateToPrevious) {
-                                Image(systemName: "chevron.left.circle.fill")
-                                    .font(.system(size: 44))
-                                    .foregroundColor(.white)
-                                    .background(Circle().fill(Color.black.opacity(0.3)).frame(width: 50, height: 50))
-                            }
-                            .padding(.leading, 20)
-                        } else {
-                            Spacer().frame(width: 64)
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(.white)
                         }
 
                         Spacer()
 
-                        // 次へボタン
-                        if currentIndex < allFiles.count - 1 {
-                            Button(action: navigateToNext) {
-                                Image(systemName: "chevron.right.circle.fill")
-                                    .font(.system(size: 44))
-                                    .foregroundColor(.white)
-                                    .background(Circle().fill(Color.black.opacity(0.3)).frame(width: 50, height: 50))
-                            }
-                            .padding(.trailing, 20)
-                        } else {
-                            Spacer().frame(width: 64)
+                        Text(currentFile.fileName ?? "無題")
+                            .foregroundColor(.white)
+                            .font(.headline)
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        ShareLink(item: currentFileURL) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 24))
+                                .foregroundColor(.white)
                         }
                     }
-                    .frame(maxHeight: .infinity, alignment: .center)
-                }
-            }
-            .navigationTitle(currentFile.fileName ?? "無題")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("閉じる") {
-                        dismiss()
-                    }
-                    .foregroundColor(.white)
-                }
+                    .padding()
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.black.opacity(0.7), Color.clear]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    ShareLink(item: currentFileURL) {
-                        Image(systemName: "square.and.arrow.up")
-                            .foregroundColor(.white)
-                    }
+                    Spacer()
                 }
+                .transition(.opacity)
             }
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(Color.black.opacity(0.8), for: .navigationBar)
         }
         .fullScreenCover(isPresented: $showCustomVideoPlayer, onDismiss: {
             // 動画プレーヤーが閉じられたら、少し待ってからFileViewerViewも閉じる
@@ -204,6 +204,12 @@ struct FileViewerView: View {
         guard let fileName = file.fileName else { return false }
         let ext = (fileName as NSString).pathExtension.lowercased()
         return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "mp4", "mov", "m4v", "avi", "mkv", "webm"].contains(ext)
+    }
+
+    private func isImageFile(_ file: DownloadedFile) -> Bool {
+        guard let fileName = file.fileName else { return false }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return ["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext)
     }
 
     private func navigateToPrevious() {
@@ -302,6 +308,86 @@ struct FileViewerView: View {
             // その他のファイルはQuickLookで表示
             print("📄 QuickLookで表示: \(ext)")
             self.isLoading = false
+        }
+    }
+}
+
+// 個別画像ページビュー
+struct ImagePageView: View {
+    let file: DownloadedFile
+    @State private var image: UIImage?
+    @State private var currentScale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+
+    var body: some View {
+        GeometryReader { geometry in
+            if let image = image {
+                ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: geometry.size.width * currentScale, height: geometry.size.height * currentScale)
+                        .gesture(magnificationGesture)
+                        .gesture(doubleTapGesture)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+            } else {
+                ProgressView()
+            }
+        }
+        .onAppear {
+            loadImage()
+        }
+    }
+
+    private var magnificationGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                currentScale = lastScale * value
+            }
+            .onEnded { value in
+                lastScale = currentScale
+                if currentScale < 1.0 {
+                    withAnimation {
+                        currentScale = 1.0
+                        lastScale = 1.0
+                    }
+                } else if currentScale > 5.0 {
+                    withAnimation {
+                        currentScale = 5.0
+                        lastScale = 5.0
+                    }
+                }
+            }
+    }
+
+    private var doubleTapGesture: some Gesture {
+        TapGesture(count: 2)
+            .onEnded {
+                withAnimation {
+                    if currentScale > 1.0 {
+                        currentScale = 1.0
+                        lastScale = 1.0
+                    } else {
+                        currentScale = 2.0
+                        lastScale = 2.0
+                    }
+                }
+            }
+    }
+
+    private func loadImage() {
+        guard let relativePath = file.filePath else { return }
+        let absolutePath = DownloadService.shared.getAbsolutePath(from: relativePath)
+        let url = URL(fileURLWithPath: absolutePath)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let data = try? Data(contentsOf: url),
+               let loadedImage = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self.image = loadedImage
+                }
+            }
         }
     }
 }
