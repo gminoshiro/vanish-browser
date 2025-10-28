@@ -216,9 +216,6 @@ struct DownloadListView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .listRowBackground(Color.clear)
                 } else {
-                    // ホームのファイル（フォルダなし）
-                    homeFilesSection
-
                     // フォルダ一覧のみ表示（ファイルは非表示）
                     ForEach(folders, id: \.self) { folder in
                         Button(action: {
@@ -264,6 +261,9 @@ struct DownloadListView: View {
                             .tint(.blue)
                         }
                     }
+
+                    // ホームのファイル（フォルダなし）
+                    homeFilesSection
                 }
             }
             }
