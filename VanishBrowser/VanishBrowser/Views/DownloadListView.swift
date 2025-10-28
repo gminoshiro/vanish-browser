@@ -26,6 +26,7 @@ struct DownloadListView: View {
     @State private var newFileName = ""
     @State private var showMoveFile = false
     @State private var selectedFolder = ""
+    @State private var showFolderPicker = false  // フォルダ選択ダイアログ
     @State private var showDeleteFolder = false
     @State private var folderToDelete = ""
     @State private var sortOption: SortOption = .date
@@ -195,7 +196,7 @@ struct DownloadListView: View {
 
                             Button {
                                 selectedFile = download
-                                showMoveFile = true
+                                showFolderPicker = true
                             } label: {
                                 Label("移動", systemImage: "folder")
                             }
@@ -378,19 +379,18 @@ struct DownloadListView: View {
                     Text("拡張子 .\(ext) は自動的に保持されます")
                 }
             }
-            .alert("フォルダに移動", isPresented: $showMoveFile) {
-                TextField("移動先フォルダ名", text: $selectedFolder)
-                Button("移動") {
-                    if !selectedFolder.isEmpty, let file = selectedFile {
-                        if DownloadService.shared.moveFile(file, toFolder: selectedFolder) {
-                            loadDownloads()
+            .sheet(isPresented: $showFolderPicker) {
+                FolderPickerForMoveView(
+                    selectedFolder: $selectedFolder,
+                    onSelect: { folder in
+                        if let file = selectedFile {
+                            if DownloadService.shared.moveFile(file, toFolder: folder) {
+                                loadDownloads()
+                            }
                         }
-                        selectedFolder = ""
+                        showFolderPicker = false
                     }
-                }
-                Button("キャンセル", role: .cancel) {
-                    selectedFolder = ""
-                }
+                )
             }
             .alert("フォルダを削除", isPresented: $showDeleteFolder) {
                 Button("削除", role: .destructive) {
@@ -510,7 +510,7 @@ struct DownloadListView: View {
 
             Button {
                 selectedFile = download
-                showMoveFile = true
+                showFolderPicker = true
             } label: {
                 Label("移動", systemImage: "folder")
             }
@@ -753,6 +753,93 @@ struct ThumbnailView: View {
         UIGraphicsEndImageContext()
 
         return newImage
+    }
+}
+
+// フォルダ選択ビュー（ファイル移動用）
+struct FolderPickerForMoveView: View {
+    @Environment(\.dismiss) var dismiss
+    @Binding var selectedFolder: String
+    let onSelect: (String) -> Void
+    @State private var folders: [String] = []
+    @State private var showCreateFolder = false
+    @State private var newFolderName = ""
+
+    var body: some View {
+        NavigationView {
+            List {
+                // ホーム選択肢
+                Button(action: {
+                    onSelect("")
+                    dismiss()
+                }) {
+                    HStack {
+                        Image(systemName: "house.fill")
+                            .foregroundColor(.blue)
+                        Text("ホーム")
+                        Spacer()
+                    }
+                }
+
+                // フォルダ一覧
+                ForEach(folders, id: \.self) { folder in
+                    Button(action: {
+                        onSelect(folder)
+                        dismiss()
+                    }) {
+                        HStack {
+                            Image(systemName: "folder.fill")
+                                .foregroundColor(.blue)
+                            Text(folder)
+                            Spacer()
+                        }
+                    }
+                }
+            }
+            .navigationTitle("移動先フォルダを選択")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showCreateFolder = true
+                    }) {
+                        Image(systemName: "folder.badge.plus")
+                    }
+                }
+            }
+            .onAppear {
+                loadFolders()
+            }
+            .alert("新規フォルダ", isPresented: $showCreateFolder) {
+                TextField("フォルダ名", text: $newFolderName)
+                Button("キャンセル", role: .cancel) {
+                    newFolderName = ""
+                }
+                Button("作成") {
+                    createFolder()
+                }
+            } message: {
+                Text("フォルダ名を入力してください")
+            }
+        }
+    }
+
+    private func loadFolders() {
+        folders = DownloadService.shared.getAllFolders()
+    }
+
+    private func createFolder() {
+        guard !newFolderName.isEmpty else { return }
+
+        if DownloadService.shared.createFolder(name: newFolderName) {
+            loadFolders()
+            newFolderName = ""
+        }
     }
 }
 
