@@ -96,8 +96,15 @@
 ### UI
 - [TabManagerView.swift](VanishBrowser/VanishBrowser/Views/TabManagerView.swift) - タブ管理UI
 - [CustomVideoPlayerView.swift](VanishBrowser/VanishBrowser/Views/CustomVideoPlayerView.swift) - 動画プレーヤー
+- [DownloadListView.swift](VanishBrowser/VanishBrowser/Views/DownloadListView.swift) - ダウンロード一覧
 - [SettingsView.swift](VanishBrowser/VanishBrowser/Views/SettingsView.swift) - 設定
 - [LicenseView.swift](VanishBrowser/VanishBrowser/Views/LicenseView.swift) - ライセンス
+
+### ドキュメント
+- [docs/INDEX.md](docs/INDEX.md) - ドキュメント一覧
+- [docs/01-product/](docs/01-product/) - プロダクト・ビジネス戦略
+- [docs/02-development/](docs/02-development/) - 開発・テスト
+- [docs/03-launch/](docs/03-launch/) - リリース関連
 
 ---
 
