@@ -88,7 +88,7 @@ struct TabManagerView: View {
                 // タブカード一覧
                 ScrollView {
                     VStack(spacing: 16) {
-                        ForEach(Array(filteredTabs.enumerated()), id: \.element.id) { index, tab in
+                        ForEach(filteredTabs, id: \.id) { tab in
                             TabCardView(
                                 tab: tab,
                                 isSelected: tabManager.currentTabId == tab.id,
@@ -100,37 +100,6 @@ struct TabManagerView: View {
                                     tabManager.closeTab(tab.id)
                                 }
                             )
-                            .offset(y: draggingTab?.id == tab.id ? dragOffset : 0)
-                            .scaleEffect(draggingTab?.id == tab.id ? 1.05 : 1.0)
-                            .zIndex(draggingTab?.id == tab.id ? 1 : 0)
-                            .animation(.easeInOut(duration: 0.2), value: draggingTab?.id == tab.id)
-                            .if(isReorderMode) { view in
-                                view.gesture(
-                                    DragGesture()
-                                        .onChanged { value in
-                                            if draggingTab == nil {
-                                                draggingTab = tab
-                                                print("🎯 ドラッグ開始: \(tab.title)")
-                                            }
-                                            dragOffset = value.translation.height
-                                        }
-                                        .onEnded { value in
-                                            let dragDistance = value.translation.height
-                                            let itemHeight: CGFloat = 216 + 16 // カード高さ + spacing
-                                            let positions = Int(round(dragDistance / itemHeight))
-                                            print("📊 移動: distance=\(dragDistance), positions=\(positions), currentIndex=\(index)")
-
-                                            if positions != 0 {
-                                                let newIndex = max(0, min(filteredTabs.count - 1, index + positions))
-                                                print("🔀 並び替え実行: \(index) -> \(newIndex)")
-                                                tabManager.moveTabs(from: IndexSet(integer: index), to: newIndex > index ? newIndex + 1 : newIndex, isPrivate: selectedMode == .private_)
-                                            }
-
-                                            draggingTab = nil
-                                            dragOffset = 0
-                                        }
-                                )
-                            }
                         }
                     }
                     .padding()
@@ -168,10 +137,8 @@ struct TabCardView: View {
     @State private var showShareSheet = false
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            // メインカード
-            VStack(spacing: 0) {
-                // カードヘッダー
+        VStack(spacing: 0) {
+            // カードヘッダー
                 HStack {
                     // ファビコン
                     if tab.isPrivate {
@@ -195,9 +162,22 @@ struct TabCardView: View {
 
                     Spacer()
 
-                    // ×ボタンのスペース確保
-                    Color.clear
-                        .frame(width: 28, height: 28)
+                    // ×ボタン
+                    Button(action: {
+                        onClose()
+                    }) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(.systemGray5))
+                                .frame(width: 28, height: 28)
+
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 28, height: 28)
                 }
                 .padding()
                 .background(tab.isPrivate ? Color.purple.opacity(0.05) : Color(.secondarySystemBackground))
@@ -230,32 +210,13 @@ struct TabCardView: View {
                     }
                 }
                 .frame(height: 200)
-            }
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(12)
-            .onTapGesture {
-                print("🔵 カードタップ: タブID=\(tab.id), タイトル=\(tab.title)")
-                onTap()
-            }
-
-            // ×ボタン（最上位レイヤー）
-            Button(action: {
-                print("🔴 ×ボタンタップ: タブID=\(tab.id), タイトル=\(tab.title)")
-                onClose()
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(Color(.systemGray5))
-                        .frame(width: 28, height: 28)
-
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onTap()
                 }
-            }
-            .buttonStyle(.plain)
-            .padding(12)
         }
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
