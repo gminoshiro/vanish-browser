@@ -1,7 +1,7 @@
-# BUG-040: ファーストビューでツールバーが非表示
+# BUG-040: iPadでツールバー見切れ
 
 **作成日**: 2025-10-29
-**ステータス**: 🔴 対応中
+**ステータス**: ✅ 修正完了
 **優先度**: Critical（App Store リジェクト対応）
 
 ---
@@ -25,137 +25,110 @@
 
 ## 問題
 
-### 現状の動作
-- ブラウザ初期表示時、URLバー・ツールバーが非表示
-- ユーザーがタップして初めて表示される
-- iPadでは画面が広いため、ツールバーがどこにあるか分かりづらい
-
-### 審査での指摘
-- トップバー（URLバー）とボトムバー（ツールバー）が見切れている
-- iPadでの使用が困難
-
----
-
-## 期待される動作
-
-### 修正後
-1. **初期表示**: URLバー・ツールバーを表示状態でスタート
-2. **タップ操作**: タップで表示/非表示を切り替え可能
-3. **iPad対応**: 画面サイズに応じたレイアウト調整
-
----
-
-## 修正方針
-
-### 1. BrowserView.swift の修正
-
-**現状:**
-```swift
-@State private var showToolbar = false  // 初期状態: 非表示
-```
-
-**修正後:**
-```swift
-@State private var showToolbar = true   // 初期状態: 表示
-```
-
-### 2. CustomVideoPlayerView.swift の修正（動画プレーヤー）
-
-**現状:**
-```swift
-@State private var showToolbar = false  // 初期状態: 非表示
-```
-
-**修正後:**
-```swift
-@State private var showToolbar = true   // 初期状態: 表示
-```
-
-### 3. FileViewerView.swift の修正（画像ビューアー）
-
-**現状:**
-```swift
-@State private var showToolbar = false  // 初期状態: 非表示
-```
-
-**修正後:**
-```swift
-@State private var showToolbar = true   // 初期状態: 表示
-```
-
-### 4. iPad対応の改善（オプション）
-
-- Safe Area対応の確認
-- iPad専用レイアウト調整
-- デバイスサイズに応じたツールバー高さ調整
-
----
-
-## 影響範囲
-
-### 修正対象ファイル
-- [BrowserView.swift](../../VanishBrowser/VanishBrowser/Views/BrowserView.swift)
-- [CustomVideoPlayerView.swift](../../VanishBrowser/VanishBrowser/Views/CustomVideoPlayerView.swift)
-- [FileViewerView.swift](../../VanishBrowser/VanishBrowser/Views/FileViewerView.swift)
-
-### テスト必要デバイス
-- ✅ iPhone 15/16 (確認済み)
-- ⚠️ iPad Air (5th generation) - iPadOS 26.0.1
-- ⚠️ iPad Pro
-- ⚠️ iPad mini
+### 根本原因
+1. URLバー・ツールバーのpaddingがSafe Areaを考慮していない
+2. iPadで画面端まで広がり、見切れる
+3. タップでバー切り替えの仕様が審査で問題視される可能性
 
 ---
 
 ## 修正内容
 
-### 修正1: BrowserView.swift
+### 1. iPad対応のpadding調整
 
-変更箇所: 初期状態を表示に変更
-
+**BrowserView.swift - URLバー:**
 ```swift
 // 修正前
-@State private var showToolbar = false
+.padding()
 
 // 修正後
-@State private var showToolbar = true
+.padding(.horizontal)
+.padding(.top, 8)
+.padding(.bottom, 8)
 ```
 
-### 修正2: CustomVideoPlayerView.swift
-
-変更箇所: 初期状態を表示に変更
-
+**BrowserView.swift - ツールバー:**
 ```swift
 // 修正前
-@State private var showToolbar = false
+.padding(.horizontal, 8)
+.padding(.vertical, 6)
 
 // 修正後
-@State private var showToolbar = true
+.padding(.horizontal, 12)
+.padding(.top, 6)
+.padding(.bottom, 8)
 ```
 
-### 修正3: FileViewerView.swift
-
-変更箇所: 初期状態を表示に変更
-
+**FileViewerView.swift - ツールバー:**
 ```swift
 // 修正前
-@State private var showToolbar = false
+.padding()
 
 // 修正後
-@State private var showToolbar = true
+.padding(.horizontal)
+.padding(.top, 12)
+.padding(.bottom, 8)
 ```
+
+### 2. スクロール連動バー表示
+
+**iPad:**
+- バーを常に表示（スクロールで非表示にしない）
+- 画面が大きいので邪魔にならない
+
+**iPhone:**
+- 起動時・ホーム画面：バー表示
+- 下スクロール：バー非表示
+- 上スクロール：バー表示
+
+**BrowserViewModel.swift:**
+```swift
+// iPad判定
+private var isIPad: Bool {
+    UIDevice.current.userInterfaceIdiom == .pad
+}
+
+func handleScroll(offset: CGFloat) {
+    // iPadの場合はスクロールでバーを隠さない
+    if isIPad {
+        showToolbars = true
+        return
+    }
+
+    // iPhone: スクロール連動でバー表示/非表示
+    // ...
+}
+```
+
+### 3. タップ切り替え削除
+
+- ホーム画面タップでのバー切り替えを削除
+- Safari/Chrome/Alohaと同様のスクロール連動のみ
 
 ---
 
 ## 動作確認
 
-### 確認項目
-- [ ] ブラウザ起動時、URLバー・ツールバーが表示されている
-- [ ] タップでツールバーを非表示にできる
-- [ ] 再度タップで表示に戻る
-- [ ] iPad Air (5th generation) で正常に表示される
-- [ ] iPhone 15/16 でも正常に動作する
-- [ ] 動画プレーヤーでツールバーが表示される
-- [ ] 画像ビューアーでツールバーが表示される
+### iPad
+- ✅ 起動時にURLバー・ツールバーが表示
+- ✅ スクロールしてもバーが消えない
+- ✅ URLバー・ツールバーが画面端で見切れない
+- ✅ タップでバーが消えない
+
+### iPhone
+- ✅ 起動時にURLバー・ツールバーが表示
+- ✅ 下スクロールでバー非表示
+- ✅ 上スクロールでバー表示
+- ✅ タップでバーが消えない
+
+---
+
+## 影響範囲
+
+### 修正ファイル
+- [BrowserView.swift](../../VanishBrowser/VanishBrowser/Views/BrowserView.swift) - padding調整、タップ切り替え削除
+- [FileViewerView.swift](../../VanishBrowser/VanishBrowser/Views/FileViewerView.swift) - padding調整
+- [BrowserViewModel.swift](../../VanishBrowser/VanishBrowser/ViewModels/BrowserViewModel.swift) - iPad判定追加
 
 ---
 
@@ -166,4 +139,10 @@
 
 ---
 
-**最終更新**: 2025-10-29
+## コミット
+
+- `ab49de7` - fix: BUG-040 iPad対応とスクロール連動バー表示
+
+---
+
+**最終更新**: 2025-10-30
