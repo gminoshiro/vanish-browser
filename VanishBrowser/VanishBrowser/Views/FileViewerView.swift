@@ -149,7 +149,9 @@ struct FileViewerView: View {
                                 .foregroundColor(.white)
                         }
                     }
-                    .padding()
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
                     .background(
                         LinearGradient(
                             gradient: Gradient(colors: [Color.black.opacity(0.7), Color.clear]),

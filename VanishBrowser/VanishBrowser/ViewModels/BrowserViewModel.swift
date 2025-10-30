@@ -1016,8 +1016,20 @@ extension BrowserViewModel: WKUIDelegate {
         return videoExtensions.contains(url.pathExtension.lowercased())
     }
 
+    // iPad判定
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
     // スクロール検出でツールバー表示/非表示を制御
     func handleScroll(offset: CGFloat) {
+        // iPadの場合はスクロールでバーを隠さない
+        if isIPad {
+            showToolbars = true
+            return
+        }
+
+        // iPhone: スクロール連動でバー表示/非表示
         let threshold: CGFloat = 10
         let delta = offset - lastScrollOffset
 

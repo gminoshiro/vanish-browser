@@ -97,7 +97,9 @@ struct BrowserView: View {
                     }
                     .buttonStyle(ScaleButtonStyle())
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
@@ -145,12 +147,6 @@ struct BrowserView: View {
                             urlText = url
                         }
                     )
-                    .onTapGesture {
-                        // ホーム画面をタップでツールバー表示切り替え
-                        withAnimation {
-                            viewModel.showToolbars.toggle()
-                        }
-                    }
                     .transition(.opacity)
                     .zIndex(2)
                 }
@@ -401,8 +397,9 @@ struct BrowserView: View {
                 }
                 .buttonStyle(ScaleButtonStyle())
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
                 .background(Color(UIColor.systemBackground))
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .ignoresSafeArea(.keyboard)
@@ -410,13 +407,6 @@ struct BrowserView: View {
         }
         .onChange(of: viewModel.currentURL) { _, newURL in
             urlText = newURL
-
-            // ホーム画面（URLが空）の時は初期状態でツールバー非表示
-            if newURL.isEmpty || newURL == "about:blank" {
-                viewModel.showToolbars = false
-            } else {
-                viewModel.showToolbars = true
-            }
 
             // タブのURLを更新
             if let tabId = tabManager.currentTabId {
@@ -571,6 +561,9 @@ struct BrowserView: View {
             Text("\(downloadedFileName)\n(\(String(format: "%.1f", sizeInMB)) MB)")
         }
         .onAppear {
+            // 初期表示時はバーを表示
+            viewModel.showToolbars = true
+
             // viewModelにtabManagerをセット（履歴保存時のisPrivate判定用）
             viewModel.tabManager = tabManager
 
