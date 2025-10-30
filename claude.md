@@ -56,6 +56,21 @@ feature/xxx, fix/xxx (作業ブランチ)
 - **メッセージ**: `fix: BUG-XXX ...` / `feat: FEATURE-XXX ...`
 - **ブランチ**: `develop` にプッシュ（`main` は保護されているのでPRのみ）
 - **バッチ禁止**: 複数チケットをまとめてコミットしない
+- **プッシュ後の確認**: ユーザーに確認してもらい、OKが出たら次のステップへ
+
+### mainへのマージ ⭐ 重要
+**プッシュ後、必ずユーザー確認を取ってから実行:**
+
+1. **ユーザー確認**: 「動作確認OKです」の確認をもらう
+2. **PR作成**: `develop` → `main` へPR作成
+3. **mainマージ**: PRをマージ
+4. **完了報告**: ユーザーに完了を報告
+
+```bash
+# PR作成とマージ（ユーザー確認OK後のみ実行）
+gh pr create --base main --head develop --title "..." --body "..."
+gh pr merge <PR番号> --merge --delete-branch=false
+```
 
 ### 作業進行
 - **止まらない**: 確認待ちでも他のタスクを進める
