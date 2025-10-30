@@ -44,9 +44,6 @@ struct CustomVideoPlayerView: View {
                 // カスタムビデオプレーヤー（AVPlayerLayerを直接使用）
                 CustomAVPlayerView(player: playerViewModel.player)
                     .ignoresSafeArea()
-                    .onTapGesture {
-                        toggleControls()
-                    }
 
                 // カスタムコントロール
                 if showControls {
@@ -210,6 +207,10 @@ struct CustomVideoPlayerView: View {
                     .transition(.opacity)
                 }
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                toggleControls()
+            }
         }
         .onAppear {
             playerViewModel.play()
@@ -251,11 +252,14 @@ struct CustomVideoPlayerView: View {
     }
 
     private func toggleControls() {
+        let newValue = !showControls
         withAnimation {
-            showControls.toggle()
+            showControls = newValue
         }
-        if showControls {
+        if newValue {
             scheduleHideControls()
+        } else {
+            hideControlsTask?.cancel()
         }
     }
 
