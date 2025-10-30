@@ -352,13 +352,7 @@ struct BrowserView: View {
                     Button(action: {
                         showAutoDeleteSettings = true
                     }) {
-                        Label("自動削除設定", systemImage: "trash")
-                    }
-
-                    Button(action: {
-                        showCookieManager = true
-                    }) {
-                        Label("Cookie管理", systemImage: "folder.badge.gearshape")
+                        Label("自動削除", systemImage: "trash")
                     }
 
                     Button(action: {

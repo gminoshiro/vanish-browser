@@ -75,6 +75,14 @@ class AutoDeleteService: ObservableObject {
         }
     }
 
+    @Published var deleteTabs: Bool {
+        didSet {
+            UserDefaults.standard.set(deleteTabs, forKey: "deleteTabs")
+            UserDefaults.standard.synchronize()
+            print("💾 設定保存: deleteTabs = \(deleteTabs)")
+        }
+    }
+
     private init() {
         // UserDefaultsから設定を読み込み
         if let modeString = UserDefaults.standard.string(forKey: "autoDeleteMode") {
@@ -97,9 +105,11 @@ class AutoDeleteService: ObservableObject {
             self.deleteBrowsingHistory = false
             self.deleteDownloads = false
             self.deleteBookmarks = false
+            self.deleteTabs = false
             UserDefaults.standard.set(false, forKey: "deleteBrowsingHistory")
             UserDefaults.standard.set(false, forKey: "deleteDownloads")
             UserDefaults.standard.set(false, forKey: "deleteBookmarks")
+            UserDefaults.standard.set(false, forKey: "deleteTabs")
             UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
             print("🎉 初回起動: デフォルト設定を保存")
         } else {
@@ -107,7 +117,8 @@ class AutoDeleteService: ObservableObject {
             self.deleteBrowsingHistory = UserDefaults.standard.bool(forKey: "deleteBrowsingHistory")
             self.deleteDownloads = UserDefaults.standard.bool(forKey: "deleteDownloads")
             self.deleteBookmarks = UserDefaults.standard.bool(forKey: "deleteBookmarks")
-            print("📱 設定読み込み: 閲覧履歴=\(deleteBrowsingHistory), DL=\(deleteDownloads), BM=\(deleteBookmarks)")
+            self.deleteTabs = UserDefaults.standard.bool(forKey: "deleteTabs")
+            print("📱 設定読み込み: 閲覧履歴=\(deleteBrowsingHistory), DL=\(deleteDownloads), BM=\(deleteBookmarks), タブ=\(deleteTabs)")
         }
 
         // アプリがバックグラウンドに入る時の処理
@@ -214,11 +225,12 @@ class AutoDeleteService: ObservableObject {
         print("  - 閲覧履歴: \(deleteBrowsingHistory ? "ON" : "OFF")")
         print("  - ダウンロード: \(deleteDownloads ? "ON" : "OFF")")
         print("  - ブックマーク: \(deleteBookmarks ? "ON" : "OFF")")
+        print("  - タブ: \(deleteTabs ? "ON" : "OFF")")
 
         var deletedItems: [String] = []
 
         // 削除対象がすべてOFFの場合は警告
-        if !deleteBrowsingHistory && !deleteDownloads && !deleteBookmarks {
+        if !deleteBrowsingHistory && !deleteDownloads && !deleteBookmarks && !deleteTabs {
             print("⚠️ 削除対象が選択されていません")
             return
         }
@@ -242,6 +254,12 @@ class AutoDeleteService: ObservableObject {
                 BookmarkService.shared.deleteBookmark(bookmark)
             }
             deletedItems.append("ブックマーク(\(bookmarks.count)件)")
+        }
+
+        // タブを削除
+        if deleteTabs {
+            deleteOldTabs()
+            deletedItems.append("タブ")
         }
 
         // 閲覧履歴を削除（WebKitのデータストア + Core Data）
@@ -285,17 +303,18 @@ class AutoDeleteService: ObservableObject {
     }
 
     // 手動削除（選択された項目のみ）
-    func performManualDelete(history: Bool, downloads: Bool, bookmarks: Bool) {
+    func performManualDelete(history: Bool, downloads: Bool, bookmarks: Bool, tabs: Bool = false) {
         print("🗑️ 手動削除開始...")
         print("📋 削除対象:")
         print("  - 閲覧履歴: \(history ? "ON" : "OFF")")
         print("  - ダウンロード: \(downloads ? "ON" : "OFF")")
         print("  - ブックマーク: \(bookmarks ? "ON" : "OFF")")
+        print("  - タブ: \(tabs ? "ON" : "OFF")")
 
         var deletedItems: [String] = []
 
         // 削除対象がすべてOFFの場合は警告
-        if !history && !downloads && !bookmarks {
+        if !history && !downloads && !bookmarks && !tabs {
             print("⚠️ 削除対象が選択されていません")
             return
         }
@@ -321,6 +340,12 @@ class AutoDeleteService: ObservableObject {
             deletedItems.append("ブックマーク(\(bookmarks.count)件)")
         }
 
+        // タブを削除（手動削除の場合はすべて削除）
+        if tabs {
+            deleteAllTabs()
+            deletedItems.append("タブ")
+        }
+
         // 閲覧履歴を削除（WebKitのデータストア + Core Data）
         if history {
             // Core Dataの履歴を削除
@@ -342,8 +367,8 @@ class AutoDeleteService: ObservableObject {
     func deleteAllData() {
         print("🗑️ deleteAllData: すべてのデータを完全削除します")
 
-        // 設定を上書きせず、すべてを削除
-        performManualDelete(history: true, downloads: true, bookmarks: true)
+        // 設定を上書きせず、すべてを削除（タブも含む）
+        performManualDelete(history: true, downloads: true, bookmarks: true, tabs: true)
 
         // 一時フォルダも含めてすべてのフォルダを強制削除
         DownloadService.shared.removeAllFolders()
@@ -368,6 +393,45 @@ class AutoDeleteService: ObservableObject {
         } else {
             return "まもなく"
         }
+    }
+
+    // タブを削除（自動削除用）
+    private func deleteOldTabs() {
+        // アプリ終了時の場合は、すべてのタブを削除（過去の日付を指定）
+        let cutoffDate: Date
+        if autoDeleteMode == .onAppClose {
+            // 未来の日付を指定して、すべてのタブを削除
+            cutoffDate = Date().addingTimeInterval(60 * 60 * 24 * 365) // 1年後
+            print("🗑️ タブ削除: すべてのタブを削除（アプリ終了時）")
+        } else if let interval = autoDeleteMode.timeInterval {
+            cutoffDate = Date().addingTimeInterval(-interval)
+            print("🗑️ タブ削除: \(cutoffDate)以前のタブを削除")
+        } else {
+            print("⚠️ タブ削除: 自動削除が無効")
+            return
+        }
+
+        // NotificationCenterでTabManagerに削除を依頼
+        NotificationCenter.default.post(
+            name: NSNotification.Name("DeleteOldTabs"),
+            object: nil,
+            userInfo: ["cutoffDate": cutoffDate]
+        )
+    }
+
+    // すべてのタブを削除（手動削除用）
+    private func deleteAllTabs() {
+        print("🗑️ タブ削除: すべてのタブを削除（手動削除）")
+
+        // 未来の日付を指定して、すべてのタブを削除
+        let cutoffDate = Date().addingTimeInterval(60 * 60 * 24 * 365) // 1年後
+
+        // NotificationCenterでTabManagerに削除を依頼
+        NotificationCenter.default.post(
+            name: NSNotification.Name("DeleteOldTabs"),
+            object: nil,
+            userInfo: ["cutoffDate": cutoffDate]
+        )
     }
 
     // 旧設定から新設定へのマイグレーション

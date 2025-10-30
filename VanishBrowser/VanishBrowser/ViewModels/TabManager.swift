@@ -11,21 +11,36 @@ import SwiftUI
 import UIKit
 import WebKit
 
+// タブの永続化用構造体
+private struct PersistedTab: Codable {
+    let id: String
+    let url: String
+    let title: String
+    let isPrivate: Bool
+    let createdAt: Date
+}
+
 class TabManager: ObservableObject {
     @Published var tabs: [Tab] = []
     @Published var currentTabId: UUID?
 
     init() {
-        // 初期タブを作成
-        let initialTab = Tab()
-        tabs = [initialTab]
-        currentTabId = initialTab.id
+        // 保存されたタブを復元
+        loadTabs()
 
         // 履歴削除通知を受け取る
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(clearAllTabsData),
             name: NSNotification.Name("ClearAllTabsData"),
+            object: nil
+        )
+
+        // タブ削除通知を受け取る
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(deleteOldTabs(_:)),
+            name: NSNotification.Name("DeleteOldTabs"),
             object: nil
         )
     }
@@ -61,6 +76,7 @@ class TabManager: ObservableObject {
         let newTab = Tab(url: url, isPrivate: isPrivate)
         tabs.append(newTab)
         currentTabId = newTab.id
+        saveTabs()
     }
 
     func closeTab(_ tabId: UUID) {
@@ -101,6 +117,8 @@ class TabManager: ObservableObject {
             } else {
                 print("  ✅ タブ削除のみ完了（現在のタブではない）")
             }
+
+            saveTabs()
         } else {
             print("  ❌ タブが見つかりません")
         }
@@ -121,6 +139,7 @@ class TabManager: ObservableObject {
             if let snapshot = snapshot {
                 tabs[index].snapshot = snapshot
             }
+            saveTabs()
         }
     }
 
@@ -143,5 +162,82 @@ class TabManager: ObservableObject {
         }
 
         tabs = newTabs
+        saveTabs()
+    }
+
+    @objc private func deleteOldTabs(_ notification: Notification) {
+        guard let cutoffDate = notification.userInfo?["cutoffDate"] as? Date else {
+            print("❌ タブ削除: cutoffDateが取得できません")
+            return
+        }
+
+        print("🗑️ TabManager: \(cutoffDate)以前のタブを削除")
+
+        let initialCount = tabs.count
+        tabs.removeAll { tab in
+            tab.createdAt < cutoffDate
+        }
+
+        let deletedCount = initialCount - tabs.count
+        print("🗑️ 削除完了: \(deletedCount)個のタブを削除")
+
+        // 最低1つのタブは残す
+        if tabs.isEmpty {
+            print("⚠️ すべてのタブが削除されたため、新規タブを作成")
+            let newTab = Tab()
+            tabs.append(newTab)
+            currentTabId = newTab.id
+        }
+
+        saveTabs()
+    }
+
+    // MARK: - タブの永続化
+
+    /// タブをUserDefaultsに保存
+    func saveTabs() {
+        let persistedTabs = tabs.map { tab in
+            PersistedTab(
+                id: tab.id.uuidString,
+                url: tab.url,
+                title: tab.title,
+                isPrivate: tab.isPrivate,
+                createdAt: tab.createdAt
+            )
+        }
+
+        if let encoded = try? JSONEncoder().encode(persistedTabs) {
+            UserDefaults.standard.set(encoded, forKey: "savedTabs")
+            print("💾 タブ保存完了: \(persistedTabs.count)個")
+        }
+    }
+
+    /// UserDefaultsからタブを復元
+    private func loadTabs() {
+        guard let data = UserDefaults.standard.data(forKey: "savedTabs"),
+              let persistedTabs = try? JSONDecoder().decode([PersistedTab].self, from: data),
+              !persistedTabs.isEmpty else {
+            // 保存されたタブがない場合は新規タブ作成
+            print("📱 保存されたタブなし: 新規タブ作成")
+            let initialTab = Tab()
+            tabs = [initialTab]
+            currentTabId = initialTab.id
+            return
+        }
+
+        // タブを復元
+        tabs = persistedTabs.map { persisted in
+            Tab(
+                id: UUID(uuidString: persisted.id) ?? UUID(),
+                title: persisted.title,
+                url: persisted.url,
+                snapshot: nil,
+                isPrivate: persisted.isPrivate,
+                createdAt: persisted.createdAt
+            )
+        }
+
+        currentTabId = tabs.first?.id
+        print("📱 タブ復元完了: \(tabs.count)個")
     }
 }

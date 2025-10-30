@@ -15,7 +15,6 @@ struct HomeView: View {
     // よく使うブックマーク（後で動的に取得可能）
     let quickBookmarks: [QuickBookmark] = [
         QuickBookmark(title: "Search", icon: "magnifyingglass", url: "https://www.google.com", color: .primary),
-        QuickBookmark(title: "X", icon: "bird", url: "https://x.com", color: .primary),
         QuickBookmark(title: "YouTube", icon: "play.rectangle.fill", url: "https://youtube.com", color: .primary),
         QuickBookmark(title: "Maps", icon: "map.fill", url: "https://maps.google.com", color: .primary),
         QuickBookmark(title: "Weather", icon: "cloud.sun.fill", url: "https://weather.com", color: .primary),
@@ -96,25 +95,26 @@ struct QuickBookmarkButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: 60, height: 60)
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 60, height: 60)
 
-                    Image(systemName: bookmark.icon)
-                        .font(.system(size: 24))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-
-                Text(bookmark.title)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.6))
-                    .lineLimit(1)
+                Image(systemName: bookmark.icon)
+                    .font(.system(size: 24))
+                    .foregroundColor(.white.opacity(0.7))
             }
+
+            Text(bookmark.title)
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(0.6))
+                .lineLimit(1)
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            action()
+        }
     }
 }
 
