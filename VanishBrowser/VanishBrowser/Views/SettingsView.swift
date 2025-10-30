@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var storageUsage: (totalBytes: Int64, fileCount: Int) = (0, 0)
     @State private var availableStorage: Int64? = nil
     @State private var showPasscodeSettings = false
+    @State private var showCookieManager = false
 
     var selectedSearchEngine: SearchEngine {
         SearchEngine(rawValue: searchEngine) ?? .google
@@ -120,7 +121,7 @@ struct SettingsView: View {
 
                 // 検索エンジン設定
                 Section(header: Text("検索エンジン")) {
-                    Picker("検索エンジン", selection: $searchEngine) {
+                    Picker("デフォルトの検索エンジン", selection: $searchEngine) {
                         ForEach(SearchEngine.allCases, id: \.rawValue) { engine in
                             Text(engine.rawValue).tag(engine.rawValue)
                         }
@@ -128,8 +129,8 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                 }
 
-                // 手動削除
-                Section(header: Text("手動削除")) {
+                // データ削除
+                Section(header: Text("データ削除")) {
                     Button(action: {
                         showDeleteConfirmation = true
                     }) {
@@ -163,8 +164,18 @@ struct SettingsView: View {
                     }
                 }
 
-                // ライセンス情報
-                Section(header: Text("ライセンス情報")) {
+                // その他
+                Section(header: Text("その他")) {
+                    Button(action: {
+                        showCookieManager = true
+                    }) {
+                        HStack {
+                            Label("Cookie管理", systemImage: "folder.badge.gearshape")
+                            Spacer()
+                        }
+                        .foregroundColor(.primary)
+                    }
+
                     NavigationLink(destination: LicenseView()) {
                         Label("オープンソースライセンス", systemImage: "doc.text")
                     }
@@ -198,13 +209,16 @@ struct SettingsView: View {
                     loadStorageInfo() // 削除後に再読み込み
                 }
             } message: {
-                Text("閲覧履歴、ダウンロードファイル、ブックマークがすべて削除されます。この操作は取り消せません。")
+                Text("閲覧履歴、ダウンロードファイル、ブックマーク、タブがすべて削除されます。この操作は取り消せません。")
             }
             .onAppear {
                 loadStorageInfo()
             }
             .sheet(isPresented: $showPasscodeSettings) {
                 PasscodeSettingsView()
+            }
+            .sheet(isPresented: $showCookieManager) {
+                CookieManagerView()
             }
         }
     }
@@ -215,6 +229,9 @@ struct SettingsView: View {
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
+        if bytes == 0 {
+            return "0 KB"
+        }
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file

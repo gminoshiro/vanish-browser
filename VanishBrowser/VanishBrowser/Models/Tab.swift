@@ -17,13 +17,15 @@ class Tab: Identifiable, ObservableObject, Equatable {
     @Published var snapshot: UIImage?
     let isPrivate: Bool
     let webView: WKWebView
+    let createdAt: Date  // 自動削除用
 
-    init(id: UUID = UUID(), title: String = "新規タブ", url: String = "", snapshot: UIImage? = nil, isPrivate: Bool = false) {
+    init(id: UUID = UUID(), title: String = "新規タブ", url: String = "", snapshot: UIImage? = nil, isPrivate: Bool = false, createdAt: Date = Date()) {
         self.id = id
         self.title = title
         self.url = url
         self.snapshot = snapshot
         self.isPrivate = isPrivate
+        self.createdAt = createdAt
 
         // タブごとにWKWebViewを作成
         let configuration = WebViewConfigurator.createConfiguration(isPrivate: isPrivate)
