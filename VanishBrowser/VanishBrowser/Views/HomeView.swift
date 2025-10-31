@@ -17,8 +17,8 @@ struct HomeView: View {
         QuickBookmark(title: "Search", icon: "magnifyingglass", url: "https://www.google.com", color: .primary),
         QuickBookmark(title: "YouTube", icon: "play.rectangle.fill", url: "https://youtube.com", color: .primary),
         QuickBookmark(title: "Maps", icon: "map.fill", url: "https://maps.google.com", color: .primary),
-        QuickBookmark(title: "Weather", icon: "cloud.sun.fill", url: "https://weather.com", color: .primary),
-        QuickBookmark(title: "News", icon: "newspaper.fill", url: "https://news.google.com", color: .primary),
+        QuickBookmark(title: "Weather", icon: "cloud.sun.fill", url: "https://weather.yahoo.co.jp/", color: .primary),
+        QuickBookmark(title: "News", icon: "newspaper.fill", url: "https://news.yahoo.co.jp/", color: .primary),
     ]
 
     var body: some View {

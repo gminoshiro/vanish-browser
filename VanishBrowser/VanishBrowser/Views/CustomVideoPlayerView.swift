@@ -112,7 +112,7 @@ struct CustomVideoPlayerView: View {
 
                             // 再生ボタンとダウンロードボタン
                             HStack(spacing: 24) {
-                                // ダウンロードボタン（DL前のみ表示）
+                                // 左側エリア（DLボタンまたは空白）
                                 if showDownloadButton {
                                     Button(action: {
                                         print("📥 DLボタン押下: \(videoFileName)")
@@ -130,40 +130,47 @@ struct CustomVideoPlayerView: View {
                                                     .frame(width: 36, height: 36)
                                             )
                                     }
+                                } else {
+                                    // DLボタンがない場合は同じサイズの空白を配置
+                                    Color.clear
+                                        .frame(width: 36, height: 36)
                                 }
 
                                 Spacer()
 
-                                // 巻き戻しボタン
-                                Button(action: {
-                                    playerViewModel.skipBackward()
-                                }) {
-                                    Image(systemName: "gobackward.10")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(.white)
-                                }
+                                // 中央: 再生コントロール
+                                HStack(spacing: 32) {
+                                    // 巻き戻しボタン
+                                    Button(action: {
+                                        playerViewModel.skipBackward()
+                                    }) {
+                                        Image(systemName: "gobackward.10")
+                                            .font(.system(size: 32))
+                                            .foregroundColor(.white)
+                                    }
 
-                                // 再生/一時停止ボタン
-                                Button(action: {
-                                    playerViewModel.togglePlayPause()
-                                }) {
-                                    Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
-                                        .font(.system(size: 36))
-                                        .foregroundColor(.white)
-                                }
+                                    // 再生/一時停止ボタン
+                                    Button(action: {
+                                        playerViewModel.togglePlayPause()
+                                    }) {
+                                        Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
+                                            .font(.system(size: 36))
+                                            .foregroundColor(.white)
+                                    }
 
-                                // 早送りボタン
-                                Button(action: {
-                                    playerViewModel.skipForward()
-                                }) {
-                                    Image(systemName: "goforward.10")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(.white)
+                                    // 早送りボタン
+                                    Button(action: {
+                                        playerViewModel.skipForward()
+                                    }) {
+                                        Image(systemName: "goforward.10")
+                                            .font(.system(size: 32))
+                                            .foregroundColor(.white)
+                                    }
                                 }
 
                                 Spacer()
 
-                                // その他メニュー
+                                // 右側: その他メニュー
                                 Menu {
                                     Button(action: {
                                         playerViewModel.changeSpeed(0.5)
