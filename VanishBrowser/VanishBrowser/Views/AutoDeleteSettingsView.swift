@@ -26,7 +26,7 @@ struct AutoDeleteSettingsView: View {
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("削除タイミング").padding(.top, 8)) {
+                Section(header: Text("削除タイミング").padding(.top, 8), footer: footerText) {
                     Picker("自動削除タイミング", selection: $autoDeleteService.autoDeleteMode) {
                         ForEach(AutoDeleteMode.allCases, id: \.self) { mode in
                             Text(mode.rawValue).tag(mode)
@@ -36,7 +36,7 @@ struct AutoDeleteSettingsView: View {
                     .disabled(!hasDeleteTarget)
                 }
 
-                Section(header: Text("削除する内容").padding(.top, 8), footer: footerText) {
+                Section(header: Text("削除する内容").padding(.top, 8)) {
                     Toggle("閲覧履歴", isOn: $autoDeleteService.deleteBrowsingHistory)
                         .onChange(of: autoDeleteService.deleteBrowsingHistory) { _, _ in
                             checkDeleteTargets()
@@ -76,6 +76,13 @@ struct AutoDeleteSettingsView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("自動削除")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+            }
             .alert("削除の確認", isPresented: $showDeleteConfirmation) {
                 Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
