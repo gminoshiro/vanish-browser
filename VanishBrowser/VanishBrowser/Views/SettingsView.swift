@@ -27,8 +27,8 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
-                // デフォルトブラウザ設定
-                Section(header: Text("デフォルトブラウザ"), footer: Text("Vanish Browserをデフォルトブラウザに設定すると、他のアプリでリンクをタップしたときにこのブラウザで開きます。")) {
+                // 一般設定
+                Section(header: Text("一般").padding(.top, 8)) {
                     Button(action: {
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             UIApplication.shared.open(url)
@@ -41,10 +41,17 @@ struct SettingsView: View {
                                 .foregroundColor(.blue)
                         }
                     }
+
+                    Picker("検索エンジン", selection: $searchEngine) {
+                        ForEach(SearchEngine.allCases, id: \.rawValue) { engine in
+                            Text(engine.rawValue).tag(engine.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
 
-                // 認証設定
-                Section(header: Text("認証"), footer: Text(authEnabled ? (useBiometric ? "生体認証が利用できない場合、パスコード認証にフォールバックします。パスコード設定が必要です。" : "4桁の数字パスコードで認証します。") : "アプリ起動時の認証を有効にできます。")) {
+                // セキュリティ設定
+                Section(header: Text("セキュリティ").padding(.top, 8), footer: Text(authEnabled ? (useBiometric ? "生体認証が使えない時はパスコードで開けます" : "4桁の数字パスコードで認証します。") : "アプリ起動時の認証を有効にできます。")) {
                     Toggle("認証を使用", isOn: $authEnabled)
                         .onChange(of: authEnabled) { _, newValue in
                             if newValue && authPassword.isEmpty {
@@ -94,16 +101,18 @@ struct SettingsView: View {
                     }
                 }
                 // ストレージ情報
-                Section(header: Text("ストレージ")) {
-                    HStack {
-                        Text("ダウンロード済みファイル")
-                        Spacer()
-                        Text("\(storageUsage.fileCount)件")
-                            .foregroundColor(.secondary)
+                Section(header: Text("ストレージ").padding(.top, 8)) {
+                    NavigationLink(destination: DownloadListView()) {
+                        HStack {
+                            Text("ダウンロード")
+                            Spacer()
+                            Text("\(storageUsage.fileCount)件")
+                                .foregroundColor(.secondary)
+                        }
                     }
 
                     HStack {
-                        Text("使用容量")
+                        Text("アプリ使用容量")
                         Spacer()
                         Text(formatBytes(storageUsage.totalBytes))
                             .foregroundColor(.secondary)
@@ -119,32 +128,31 @@ struct SettingsView: View {
                     }
                 }
 
-                // 検索エンジン設定
-                Section(header: Text("検索エンジン")) {
-                    Picker("デフォルトの検索エンジン", selection: $searchEngine) {
-                        ForEach(SearchEngine.allCases, id: \.rawValue) { engine in
-                            Text(engine.rawValue).tag(engine.rawValue)
+                // データ管理
+                Section(header: Text("データ管理").padding(.top, 8)) {
+                    NavigationLink(destination: AutoDeleteSettingsView()) {
+                        HStack {
+                            Text("自動削除")
+                            Spacer()
+                            Text(autoDeleteService.autoDeleteMode.displayShortText)
+                                .foregroundColor(.secondary)
                         }
                     }
-                    .pickerStyle(.menu)
-                }
 
-                // データ削除
-                Section(header: Text("データ削除")) {
                     Button(action: {
                         showDeleteConfirmation = true
                     }) {
                         HStack {
                             Image(systemName: "trash")
                                 .foregroundColor(.red)
-                            Text("すべてのデータを削除")
+                            Text("すべてのデータを今すぐ削除")
                                 .foregroundColor(.red)
                         }
                     }
                 }
 
-                // サポート
-                Section(header: Text("サポート")) {
+                // その他
+                Section(header: Text("その他").padding(.top, 8)) {
                     Button(action: {
                         // App IDは後でApp Store Connectで確認して設定
                         // 開発中は動作しない（App Store公開後に有効）
@@ -162,10 +170,7 @@ struct SettingsView: View {
                                 .font(.caption)
                         }
                     }
-                }
 
-                // その他
-                Section(header: Text("その他")) {
                     Button(action: {
                         showCookieManager = true
                     }) {
@@ -177,22 +182,11 @@ struct SettingsView: View {
                     }
 
                     NavigationLink(destination: LicenseView()) {
-                        Label("オープンソースライセンス", systemImage: "doc.text")
-                    }
-                }
-
-                // タイマー情報
-                if autoDeleteService.autoDeleteMode != .disabled {
-                    Section(header: Text("タイマー情報")) {
-                        HStack {
-                            Text("次回削除まで")
-                            Spacer()
-                            Text(autoDeleteService.getTimeUntilNextDelete())
-                                .foregroundColor(.secondary)
-                        }
+                        Label("ライセンス", systemImage: "doc.text")
                     }
                 }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("設定")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -202,14 +196,14 @@ struct SettingsView: View {
                     }
                 }
             }
-            .alert("すべてのデータを削除", isPresented: $showDeleteConfirmation) {
+            .alert("すべて削除", isPresented: $showDeleteConfirmation) {
                 Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
                     autoDeleteService.deleteAllData()
                     loadStorageInfo() // 削除後に再読み込み
                 }
             } message: {
-                Text("閲覧履歴、ダウンロードファイル、ブックマーク、タブがすべて削除されます。この操作は取り消せません。")
+                Text("閲覧履歴、ダウンロード、ブックマーク、タブをすべて削除します。この操作は取り消せません。")
             }
             .onAppear {
                 loadStorageInfo()

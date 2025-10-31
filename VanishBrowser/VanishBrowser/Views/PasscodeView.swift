@@ -121,6 +121,12 @@ struct PasscodeView: View {
                 }
             }
         }
+        .onChange(of: passcode) { oldValue, newValue in
+            // passcodeが外部から空にされた場合、enteredDigitsもクリア
+            if newValue.isEmpty && !enteredDigits.isEmpty {
+                enteredDigits.removeAll()
+            }
+        }
     }
 
     private func addDigit(_ digit: String) {

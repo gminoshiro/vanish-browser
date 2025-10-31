@@ -38,6 +38,27 @@ enum AutoDeleteMode: String, CaseIterable {
             return 90 * 24 * 60 * 60
         }
     }
+
+    var displayShortText: String {
+        switch self {
+        case .disabled:
+            return "無効"
+        case .onAppClose:
+            return "終了時"
+        case .after1Hour:
+            return "1時間後"
+        case .after24Hours:
+            return "24時間後"
+        case .after3Days:
+            return "3日後"
+        case .after7Days:
+            return "7日後"
+        case .after30Days:
+            return "30日後"
+        case .after90Days:
+            return "90日後"
+        }
+    }
 }
 
 class AutoDeleteService: ObservableObject {

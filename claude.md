@@ -59,12 +59,13 @@ feature/xxx, fix/xxx (作業ブランチ)
 - **プッシュ後の確認**: ユーザーに確認してもらい、OKが出たら次のステップへ
 
 ### mainへのマージ ⭐ 重要
-**プッシュ後、必ずユーザー確認を取ってから実行:**
+**プッシュ完了後、自動的にmainマージはせず、必ず確認を取る:**
 
-1. **ユーザー確認**: 「動作確認OKです」の確認をもらう
-2. **PR作成**: `develop` → `main` へPR作成
-3. **mainマージ**: PRをマージ
-4. **完了報告**: ユーザーに完了を報告
+1. **プッシュ完了**: `develop` へコミット&プッシュ
+2. **確認を取る**: 「プッシュ完了しました。PR作成してmainにマージしてよいですか？（バージョンアップが必要な場合は先に対応します）」
+3. **ユーザー確認待ち**: OKが出るまで待機
+4. **バージョン対応**: 必要に応じてバージョン番号を更新→プッシュ→再確認
+5. **PR作成&マージ**: 確認OK後に `develop` → `main` へPR作成→マージ
 
 ```bash
 # PR作成とマージ（ユーザー確認OK後のみ実行）
@@ -72,11 +73,137 @@ gh pr create --base main --head develop --title "..." --body "..."
 gh pr merge <PR番号> --merge --delete-branch=false
 ```
 
+**重要**: バージョンアップが必要なケースが多いので、プッシュ後は一度立ち止まって確認する
+
 ### 作業進行
 - **止まらない**: 確認待ちでも他のタスクを進める
 - **質問する**: わからない点は正直に質問
 - **勝手に判断しない**: 仕様変更は必ず確認
 - **並行作業**: 独立したタスクは並行実行
+
+---
+
+## 🎨 UI/UXガイドライン
+
+### ナビゲーションパターン
+
+VanishBrowserでは、画面の表示方法に応じて統一されたナビゲーションパターンを使用します。
+
+#### 1️⃣ モーダル/シート表示（`.sheet`）
+
+**用途**: 独立した作業フロー、設定画面、一覧画面など
+
+**ボタン配置:**
+- **左上**: 「閉じる」ボタン（必須）
+- **右上**: アクションボタン（削除、追加など、任意）
+
+**実装例:**
+```swift
+.toolbar {
+    ToolbarItem(placement: .navigationBarLeading) {
+        Button("閉じる") { dismiss() }
+    }
+    ToolbarItem(placement: .navigationBarTrailing) {
+        Button("削除") { /* ... */ }
+    }
+}
+```
+
+**該当画面:**
+- SettingsView（設定）
+- CookieManagerView（Cookie管理）
+- BrowsingHistoryView（閲覧履歴）
+- BookmarkListView（ブックマーク一覧）
+- DownloadListView（ダウンロード一覧）
+- PasscodeSettingsView（パスコード設定）
+- DownloadDialogView（ダウンロードダイアログ）
+
+#### 2️⃣ NavigationLink遷移
+
+**用途**: 階層的な画面遷移、設定のサブ画面など
+
+**ボタン配置:**
+- **左上**: システム標準の「← 戻る」ボタン（自動表示）
+- **右上**: なし（または必要に応じてアクション）
+- **重要**: `.navigationBarBackButtonHidden(true)` は使用禁止
+
+**実装例:**
+```swift
+NavigationLink(destination: SubView()) {
+    Text("サブ画面へ")
+}
+// SubView側では特別な設定不要（戻るボタンは自動）
+```
+
+**該当画面:**
+- AutoDeleteSettingsView（自動削除設定）
+- LicenseView（ライセンス）
+
+#### 3️⃣ 全画面表示（`.fullScreenCover` / カスタムUI）
+
+**用途**: 動画プレーヤー、画像ビューアーなど没入型コンテンツ
+
+**ボタン配置:**
+- **左上**: 「×」ボタン（`xmark.circle.fill`）
+- **右上**: 共有ボタン（`square.and.arrow.up`）
+
+**実装例:**
+```swift
+HStack {
+    Button(action: { dismiss() }) {
+        Image(systemName: "xmark.circle.fill")
+            .font(.system(size: 32))
+            .foregroundColor(.white)
+    }
+    Spacer()
+    ShareLink(item: url) {
+        Image(systemName: "square.and.arrow.up")
+            .font(.system(size: 28))
+            .foregroundColor(.white)
+    }
+}
+```
+
+**該当画面:**
+- CustomVideoPlayerView（動画プレーヤー）
+- FileViewerView（画像ビューアー）
+
+---
+
+### セクション間の余白
+
+**List内のセクション:**
+- `.listStyle(.insetGrouped)` を使用
+- セクションヘッダーに `.padding(.top, 8)` を追加
+
+**実装例:**
+```swift
+List {
+    Section(header: Text("一般").padding(.top, 8)) {
+        // ...
+    }
+    Section(header: Text("セキュリティ").padding(.top, 8)) {
+        // ...
+    }
+}
+.listStyle(.insetGrouped)
+```
+
+---
+
+### 説明文の配置
+
+**原則**: 説明文はセクションのfooter（下部）に配置
+
+**理由**: ユーザーは項目を見てから説明を読むため、下部の方が自然
+
+**実装例:**
+```swift
+Section(header: Text("削除する内容"), footer: Text("選択した項目が自動的に削除されます")) {
+    Toggle("閲覧履歴", isOn: $deleteBrowsingHistory)
+    Toggle("ダウンロード", isOn: $deleteDownloads)
+}
+```
 
 ---
 
