@@ -14,6 +14,7 @@ struct CustomVideoPlayerView: View {
     let videoFileName: String
     let showDownloadButton: Bool  // DLボタンの表示/非表示
     @Binding var isPresented: Bool
+    var onClose: (() -> Void)?  // FileViewerViewも閉じるためのクロージャ
     @StateObject private var playerViewModel: VideoPlayerViewModel
     @State private var showControls = true
     @State private var hideControlsTask: Task<Void, Never>?
@@ -21,7 +22,7 @@ struct CustomVideoPlayerView: View {
     @State private var showShareSheet = false
     @State private var downloadFileName: String
 
-    init(videoURL: URL, videoFileName: String, showDownloadButton: Bool = true, isPresented: Binding<Bool>) {
+    init(videoURL: URL, videoFileName: String, showDownloadButton: Bool = true, isPresented: Binding<Bool>, onClose: (() -> Void)? = nil) {
         print("🎬 CustomVideoPlayerView初期化")
         print("🎬 videoURL: \(videoURL.absoluteString)")
         print("🎬 videoFileName: \(videoFileName)")
@@ -32,6 +33,7 @@ struct CustomVideoPlayerView: View {
         self.videoFileName = videoFileName
         self.showDownloadButton = showDownloadButton
         self._isPresented = isPresented
+        self.onClose = onClose
         self._playerViewModel = StateObject(wrappedValue: VideoPlayerViewModel(url: videoURL))
         self._downloadFileName = State(initialValue: videoFileName)
     }
@@ -53,6 +55,7 @@ struct CustomVideoPlayerView: View {
                             // 左上: ×ボタン
                             Button(action: {
                                 isPresented = false
+                                onClose?()  // FileViewerViewも閉じる
                             }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 32))
