@@ -74,29 +74,39 @@ struct TabManagerView: View {
                 .padding()
 
                 // タブカード一覧
-                List {
-                    ForEach(filteredTabs, id: \.id) { tab in
-                        TabCardView(
-                            tab: tab,
-                            isSelected: tabManager.currentTabId == tab.id,
-                            onTap: {
-                                tabManager.switchTab(to: tab.id)
-                                dismiss()
-                            },
-                            onClose: {
-                                tabManager.closeTab(tab.id)
-                            }
-                        )
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        .listRowSeparator(.hidden)
+                ScrollViewReader { proxy in
+                    List {
+                        ForEach(filteredTabs, id: \.id) { tab in
+                            TabCardView(
+                                tab: tab,
+                                isSelected: tabManager.currentTabId == tab.id,
+                                onTap: {
+                                    tabManager.switchTab(to: tab.id)
+                                    dismiss()
+                                },
+                                onClose: {
+                                    tabManager.closeTab(tab.id)
+                                }
+                            )
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .id(tab.id)
+                        }
+                        .onMove { source, destination in
+                            tabManager.moveTabs(from: source, to: destination, isPrivate: selectedMode == .private_)
+                        }
                     }
-                    .onMove { source, destination in
-                        tabManager.moveTabs(from: source, to: destination, isPrivate: selectedMode == .private_)
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .onChange(of: tabManager.currentTabId) { _, newTabId in
+                        if let newTabId = newTabId {
+                            withAnimation {
+                                proxy.scrollTo(newTabId, anchor: .center)
+                            }
+                        }
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
 
                 Spacer()
 

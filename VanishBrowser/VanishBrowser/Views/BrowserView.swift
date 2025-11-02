@@ -606,6 +606,8 @@ struct BrowserView: View {
             ) { notification in
                 if let userInfo = notification.userInfo,
                    let url = userInfo["url"] as? String {
+                    // createNewTabが自動的にcurrentTabIdを設定するため、
+                    // onChangeハンドラで新しいタブのURLが自動ロードされる
                     tabManager.createNewTab(url: url)
                 }
             }
@@ -973,8 +975,9 @@ struct WebView: UIViewRepresentable {
                     // 新規タブで開く
                     let openInNewTab = UIAction(title: "新規タブで開く", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
                         DispatchQueue.main.async {
+                            // createNewTabが自動的にcurrentTabIdを設定するため、
+                            // onChangeハンドラで新しいタブのURLが自動ロードされる
                             self?.tabManager.createNewTab(url: linkURL.absoluteString)
-                            self?.viewModel.loadURL(linkURL.absoluteString)
                         }
                     }
                     actions.append(openInNewTab)
