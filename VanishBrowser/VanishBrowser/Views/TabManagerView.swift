@@ -236,7 +236,10 @@ struct TabCardView: View {
                 NotificationCenter.default.post(
                     name: NSNotification.Name("DuplicateTab"),
                     object: nil,
-                    userInfo: ["url": tab.url]
+                    userInfo: [
+                        "url": tab.url,
+                        "isPrivate": tab.isPrivate
+                    ]
                 )
             }) {
                 Label("タブを複製", systemImage: "plus.square.on.square")

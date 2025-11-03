@@ -606,9 +606,10 @@ struct BrowserView: View {
             ) { notification in
                 if let userInfo = notification.userInfo,
                    let url = userInfo["url"] as? String {
+                    let isPrivate = userInfo["isPrivate"] as? Bool ?? false
                     // createNewTabが自動的にcurrentTabIdを設定するため、
                     // onChangeハンドラで新しいタブのURLが自動ロードされる
-                    tabManager.createNewTab(url: url)
+                    tabManager.createNewTab(url: url, isPrivate: isPrivate)
                 }
             }
 
