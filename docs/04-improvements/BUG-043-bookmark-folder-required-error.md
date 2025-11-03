@@ -29,22 +29,41 @@ bookmark.folder = folder.isEmpty ? nil : folder  // ❌ nilはNG
 
 ## 修正内容
 
-folderが空の場合は`nil`ではなく`"未分類"`を設定するように変更：
+### 修正1: folder必須エラーの解消
+
+folderが空の場合は`nil`ではなく空文字列`""`を設定：
 
 ```swift
-bookmark.folder = folder.isEmpty ? "未分類" : folder  // ✅ デフォルト値を設定
+// BookmarkService.swift:25
+bookmark.folder = folder.isEmpty ? "" : folder  // ✅ 空文字列を設定（ホーム直下）
+```
+
+**理由**: ダウンロード機能と同じ挙動（フォルダ未選択 = ホーム直下に表示）に統一
+
+### 修正2: 空フォルダがフォルダ一覧に表示される問題
+
+`fetchFolders()`で空文字列を除外：
+
+```swift
+// BookmarkService.swift:88-91
+let folders = Set(bookmarks.compactMap { bookmark -> String? in
+    guard let folder = bookmark.folder, !folder.isEmpty else { return nil }
+    return folder
+})
 ```
 
 ## 影響
 
-- フォルダを選択せずにブックマークを追加した場合、自動的に「未分類」フォルダに分類される
-- ブックマーク追加が正常に動作するようになる
+- フォルダを選択せずにブックマークを追加した場合、ホーム直下に表示される
+- ダウンロード機能と同じUI/UXになる
+- ブックマーク追加が正常に動作する
+- 空フォルダがフォルダ一覧に表示されなくなる
 
 ## テスト
 
-- [ ] フォルダ選択なしでブックマーク追加 → 「未分類」に保存される
-- [ ] フォルダ選択ありでブックマーク追加 → 選択したフォルダに保存される
-- [ ] ブックマーク一覧で「未分類」フォルダが表示される
+- [x] フォルダ選択なしでブックマーク追加 → ホーム直下に保存される
+- [x] フォルダ選択ありでブックマーク追加 → 選択したフォルダに保存される
+- [x] ブックマーク一覧で空フォルダが表示されない
 
 ## 関連
 

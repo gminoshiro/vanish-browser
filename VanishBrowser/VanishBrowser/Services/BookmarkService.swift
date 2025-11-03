@@ -21,7 +21,8 @@ class BookmarkService {
         bookmark.id = UUID()
         bookmark.title = title
         bookmark.url = url
-        bookmark.folder = folder.isEmpty ? "未分類" : folder
+        // folderが空の場合は空文字列を設定（ホーム直下に表示）
+        bookmark.folder = folder.isEmpty ? "" : folder
         bookmark.createdAt = Date()
 
         do {
@@ -83,7 +84,11 @@ class BookmarkService {
 
         do {
             let bookmarks = try viewContext.fetch(request)
-            let folders = Set(bookmarks.compactMap { $0.folder })
+            // 空文字列とnilを除外
+            let folders = Set(bookmarks.compactMap { bookmark -> String? in
+                guard let folder = bookmark.folder, !folder.isEmpty else { return nil }
+                return folder
+            })
             return Array(folders).sorted()
         } catch {
             print("フォルダ取得エラー: \(error)")
