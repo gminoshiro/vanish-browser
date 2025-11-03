@@ -22,30 +22,6 @@ struct AuthenticationView: View {
                 Spacer()
 
                 VStack(spacing: 0) {
-                    // 上部: アイコンとタイトル
-                    Image(systemName: "lock.shield")
-                        .font(.system(size: 80))
-                        .foregroundColor(.blue)
-
-                    Spacer()
-                        .frame(height: 20)
-
-                    Text("Vanish Browser")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-
-                    if useBiometric && BiometricAuthService.shared.canUseBiometrics() && authError == nil {
-                        Spacer()
-                            .frame(height: 10)
-
-                        Text("\(BiometricAuthService.shared.biometricType())で認証")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-
-                    Spacer()
-                        .frame(height: 60)
-
                     // パスコード入力（生体認証失敗時も表示）
                     if !useBiometric || !BiometricAuthService.shared.canUseBiometrics() || authError != nil {
                         VStack(spacing: 0) {
