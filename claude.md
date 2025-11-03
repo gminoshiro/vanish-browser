@@ -19,6 +19,344 @@
 
 ---
 
+## 🔍 調査中: blob: URLダウンロード機能（ZIPファイル対応）
+
+**目標**: Hitomi.laなどのサイトで使用されているblob: URLのZIPファイルをダウンロードできるようにする（Alohaブラウザと同じ動作）
+
+### 現状の問題
+
+**症状**:
+- blob: URLのZIPダウンロードボタンをクリックすると文字化けページに遷移してしまう
+- ダウンロードダイアログが表示されない
+
+**ユーザーの期待動作（Alohaブラウザ）**:
+1. ZIPダウンロードボタンをクリック
+2. ダウンロードダイアログが表示される（フォルダ選択）
+3. フォルダを選択してダウンロード完了
+4. ZIPファイルがダウンロード一覧に表示される
+5. ZIPファイルをタップして解凍
+
+### 実装済みの内容
+
+#### 1. blob: URLナビゲーションのブロック ✅
+
+**ファイル**: [BrowserViewModel.swift:924-976](VanishBrowser/VanishBrowser/ViewModels/BrowserViewModel.swift#L924)
+
+```swift
+func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+    if let url = navigationAction.request.url {
+        // blob: URLへのナビゲーションをブロック（文字化けページ表示を防ぐ）
+        if url.scheme == "blob" {
+            print("🚫 blob: URL navigation blocked: \(url.absoluteString)")
+
+            // JavaScriptでblob:データを取得してダウンロード
+            let urlString = url.absoluteString.replacingOccurrences(of: "'", with: "\\'")
+            let js = """
+            (function() {
+                var blobUrl = '\(urlString)';
+                fetch(blobUrl)
+                    .then(function(response) { return response.blob(); })
+                    .then(function(blob) {
+                        var reader = new FileReader();
+                        reader.onloadend = function() {
+                            var base64 = reader.result.split(',')[1];
+                            var fileName = 'download.zip';
+                            if (blob.type.includes('zip')) fileName = 'archive.zip';
+
+                            window.webkit.messageHandlers.blobDownload.postMessage({
+                                url: blobUrl,
+                                fileName: fileName,
+                                data: base64,
+                                mimeType: blob.type,
+                                size: blob.size
+                            });
+                        };
+                        reader.readAsDataURL(blob);
+                    });
+            })();
+            """
+
+            webView.evaluateJavaScript(js, completionHandler: nil)
+            decisionHandler(.cancel)
+            return
+        }
+    }
+    decisionHandler(.allow)
+}
+```
+
+**動作**: ✅ blob: URLへの遷移をキャンセルして文字化けページ表示を防ぐ
+
+#### 2. JavaScriptでのblob: URL検出とデータ取得 ✅
+
+**ファイル**: [BrowserViewModel.swift:386-468](VanishBrowser/VanishBrowser/ViewModels/BrowserViewModel.swift#L386)
+
+```swift
+let blobDownloadScript = WKUserScript(
+    source: """
+    (function() {
+        // <a>タグのクリックを監視
+        document.addEventListener('click', function(e) {
+            var target = e.target;
+            while (target && target.tagName !== 'A') {
+                target = target.parentElement;
+            }
+
+            if (!target || target.tagName !== 'A') return;
+
+            var href = target.href;
+            var download = target.download || target.getAttribute('download');
+
+            // blob: URLまたはdownload属性付きリンクの場合
+            if (href && (href.startsWith('blob:') || download)) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                var fileName = download || href.split('/').pop() || 'download.zip';
+
+                if (href.startsWith('blob:')) {
+                    fetch(href)
+                        .then(function(response) { return response.blob(); })
+                        .then(function(blob) {
+                            var reader = new FileReader();
+                            reader.onloadend = function() {
+                                var base64 = reader.result.split(',')[1];
+                                window.webkit.messageHandlers.blobDownload.postMessage({
+                                    url: href,
+                                    fileName: fileName,
+                                    data: base64,
+                                    mimeType: blob.type,
+                                    size: blob.size
+                                });
+                            };
+                            reader.readAsDataURL(blob);
+                        });
+                }
+                return false;
+            }
+        }, true);
+    })();
+    """,
+    injectionTime: .atDocumentStart,
+    forMainFrameOnly: false
+)
+```
+
+**動作**: ✅ JavaScriptでblob: URLリンクのクリックを検出し、Blobデータを取得してBase64エンコード
+
+#### 3. Swiftでのblob: URLデータ処理 ✅
+
+**ファイル**: [BrowserViewModel.swift:1189-1237](VanishBrowser/VanishBrowser/ViewModels/BrowserViewModel.swift#L1189)
+
+```swift
+else if message.name == "blobDownload",
+          let dict = message.body as? [String: Any],
+          let fileName = dict["fileName"] as? String {
+
+    DispatchQueue.main.async {
+        print("📦 Blob download detected: \(fileName)")
+
+        // blob: URLの場合はbase64データがある
+        if let base64Data = dict["data"] as? String,
+           let data = Data(base64Encoded: base64Data) {
+
+            print("✅ Blob data received: \(data.count) bytes")
+
+            // 一時ファイルに保存
+            let tempDir = FileManager.default.temporaryDirectory
+            let tempFile = tempDir.appendingPathComponent(fileName)
+
+            do {
+                try data.write(to: tempFile)
+                print("✅ Blob saved to temp file: \(tempFile.path)")
+
+                // ダウンロードダイアログを表示
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowDownloadDialog"),
+                    object: nil,
+                    userInfo: [
+                        "url": tempFile,
+                        "fileName": fileName
+                    ]
+                )
+            } catch {
+                print("❌ Failed to save blob: \(error)")
+            }
+        }
+    }
+}
+```
+
+**動作**: ✅ Base64データをデコードして一時ファイルに保存し、ダウンロードダイアログ表示通知を送信
+
+#### 4. WKDownloadDelegate実装 ✅
+
+**ファイル**: [BrowserViewModel.swift:964-1015](VanishBrowser/VanishBrowser/ViewModels/BrowserViewModel.swift#L964)
+
+```swift
+@available(iOS 14.5, *)
+extension BrowserViewModel: WKDownloadDelegate {
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse,
+                  suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        let tempDir = FileManager.default.temporaryDirectory
+        let destinationURL = tempDir.appendingPathComponent(suggestedFilename)
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try? FileManager.default.removeItem(at: destinationURL)
+        }
+        completionHandler(destinationURL)
+    }
+
+    func downloadDidFinish(_ download: WKDownload) {
+        if let originalURL = download.originalRequest?.url {
+            let fileName = originalURL.lastPathComponent
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowDownloadDialog"),
+                    object: nil,
+                    userInfo: ["url": originalURL, "fileName": fileName]
+                )
+            }
+        }
+    }
+}
+```
+
+**動作**: ✅ iOS 14.5以降でWKDownloadを使用した標準ダウンロード処理
+
+### 動作確認ログ
+
+```
+🚫 blob: URL navigation blocked: blob:https://hitomi.la/bf1cda70-9023-4d5a-a18a-8834d65bac2c
+📦 Blob download detected: archive.zip
+✅ Blob data received: 7047576 bytes
+✅ Blob saved to temp file: /Users/.../tmp/archive.zip
+📨 ShowDownloadDialog通知受信
+📨 URL: file:///.../tmp/archive.zip, fileName: archive.zip
+📨 設定前 - pendingDownloadURL: nil, showDownloadDialog: false
+📨 設定後 - pendingDownloadURL: Optional(file:///.../tmp/archive.zip), showDownloadDialog: true
+📨 0.1秒後確認 - pendingDownloadURL: Optional(file:///.../tmp/archive.zip), showDownloadDialog: true
+```
+
+**結果**: ✅ blob: URLブロック成功、✅ データ取得成功、✅ 一時ファイル保存成功、✅ 通知送信成功、✅ フラグ設定成功
+
+### 未解決の問題: ダイアログが表示されない ❌
+
+**症状**:
+- `showDownloadDialog = true`が設定される
+- `pendingDownloadURL`も正しく設定される
+- しかし画面が白いまま（ダイアログが表示されない）
+- `🔍 downloadDialogView appeared`のログが出ない（ビューが描画されていない）
+
+**試した解決策**:
+
+#### 1. シートの順序変更
+**問題**: SwiftUIで複数の`.sheet(isPresented:)`を定義すると最後の1つしか機能しない
+**試行**: `showDownloadDialog`のシートを最後に移動
+**結果**: ❌ 効果なし
+
+#### 2. `.fullScreenCover()`への変更
+**ファイル**: [BrowserView.swift:504-506](VanishBrowser/VanishBrowser/Views/BrowserView.swift#L504)
+
+```swift
+.fullScreenCover(isPresented: $showDownloadDialog) {
+    downloadDialogView
+}
+```
+
+**理由**: `.fullScreenCover()`は`.sheet()`と別の階層なので競合しない
+**結果**: ❌ 効果なし（まだテスト中）
+
+### 技術的な調査結果
+
+#### SwiftUIの複数シート問題
+
+**発見**: SwiftUIでは同じビュー階層に複数の`.sheet(isPresented:)`を定義すると、**最後の1つしか機能しない**という制限がある
+
+**現在のBrowserViewのシート構造**:
+```swift
+.sheet(isPresented: $showBookmarks) { ... }
+.sheet(isPresented: $showDownloads) { ... }
+.sheet(isPresented: $showSettings) { ... }
+.sheet(isPresented: $showAutoDeleteSettings) { ... }
+.sheet(isPresented: $showCookieManager) { ... }
+.sheet(isPresented: $showBrowsingHistory) { ... }
+.sheet(isPresented: $showBookmarkFolderSelection) { ... }
+.sheet(isPresented: $showShareSheet) { ... }
+.fullScreenCover(isPresented: $showDownloadDialog) { ... }  // ← ここ
+```
+
+**問題**: 8個のシートが定義されており、動作が不安定
+
+**推奨される解決策**:
+```swift
+enum SheetType: Identifiable {
+    case bookmarks
+    case downloads
+    case settings
+    case downloadDialog(url: URL, fileName: String)
+    // ...
+
+    var id: String { /* ... */ }
+}
+
+@State private var activeSheet: SheetType?
+
+.sheet(item: $activeSheet) { sheetType in
+    switch sheetType {
+    case .bookmarks: BookmarkListView()
+    case .downloads: DownloadListView()
+    case .downloadDialog(let url, let fileName):
+        DownloadDialogView(...)
+    // ...
+    }
+}
+```
+
+**実装の難しさ**: 全てのシート呼び出し箇所を変更する必要があり、大規模な変更になる
+
+### 次のステップ（調査継続時）
+
+#### オプション1: enum統合方式（推奨、時間かかる）
+1. `SheetType` enumを定義
+2. すべての`show*`フラグを`activeSheet: SheetType?`に統合
+3. 全てのシート呼び出し箇所を更新
+4. テスト
+
+**見積もり**: 30-60分、影響範囲が広い
+
+#### オプション2: ダイアログだけ別階層に分離（簡易）
+1. DownloadDialogViewを`ZStack`の最上位に配置
+2. `showDownloadDialog`で表示/非表示を制御
+3. `.sheet()`を使わない独自実装
+
+**見積もり**: 10-20分、影響範囲が狭い
+
+#### オプション3: `.alert()`での代替（最も簡易）
+1. ダウンロードダイアログを`.alert()`で実装
+2. フォルダ選択は別途シート表示
+
+**見積もり**: 5-10分、ただしUXが劣る
+
+### 関連ファイル
+
+- [BrowserView.swift](VanishBrowser/VanishBrowser/Views/BrowserView.swift) - ダイアログ表示
+- [BrowserViewModel.swift](VanishBrowser/VanishBrowser/ViewModels/BrowserViewModel.swift) - blob: URL処理
+- [DownloadDialogView.swift](VanishBrowser/VanishBrowser/Views/DownloadDialogView.swift) - ダイアログUI
+- [ZipUtility.swift](VanishBrowser/VanishBrowser/Services/ZipUtility.swift) - ZIP解凍（未実装）
+
+### 参考: Alohaブラウザの動作
+
+1. blob: URLのZIPダウンロードボタンをクリック
+2. **文字化けページは表示されない**（ナビゲーションをブロック）
+3. ダウンロードダイアログが表示される
+4. フォルダを選択してダウンロード
+5. ZIPファイルがダウンロード一覧に追加される
+
+**VanishBrowserの現状**: 1-2は実装済み、3が動作しない、4-5は未テスト
+
+---
+
 ## 📋 開発ルール
 
 ### Git運用フロー ⭐ 重要

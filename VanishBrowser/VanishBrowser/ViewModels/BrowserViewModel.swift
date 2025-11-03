@@ -383,8 +383,93 @@ class BrowserViewModel: NSObject, ObservableObject {
             forMainFrameOnly: false
         )
 
+        // blob: URLダウンロード検出スクリプト
+        let blobDownloadScript = WKUserScript(
+            source: """
+            (function() {
+                console.log('📦 Blob download detection script loaded');
+
+                // <a>タグのクリックを監視
+                document.addEventListener('click', function(e) {
+                    var target = e.target;
+
+                    // <a>タグまたはその親要素を探す
+                    while (target && target.tagName !== 'A') {
+                        target = target.parentElement;
+                    }
+
+                    if (!target || target.tagName !== 'A') return;
+
+                    var href = target.href;
+                    var download = target.download || target.getAttribute('download');
+
+                    console.log('🔗 Link clicked:', href);
+                    console.log('📥 Download attribute:', download);
+
+                    // blob: URLまたはdownload属性付きリンクの場合
+                    if (href && (href.startsWith('blob:') || download)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        console.log('📦 Blob/Download link detected');
+
+                        var fileName = download || href.split('/').pop() || 'download.zip';
+
+                        // blob: URLの場合、データを取得
+                        if (href.startsWith('blob:')) {
+                            fetch(href)
+                                .then(function(response) {
+                                    return response.blob();
+                                })
+                                .then(function(blob) {
+                                    console.log('✅ Blob fetched:', blob.size, 'bytes');
+
+                                    // FileReaderでbase64に変換
+                                    var reader = new FileReader();
+                                    reader.onloadend = function() {
+                                        var base64 = reader.result.split(',')[1];
+                                        console.log('✅ Base64 encoded:', base64.length, 'chars');
+
+                                        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.blobDownload) {
+                                            window.webkit.messageHandlers.blobDownload.postMessage({
+                                                url: href,
+                                                fileName: fileName,
+                                                data: base64,
+                                                mimeType: blob.type,
+                                                size: blob.size
+                                            });
+                                            console.log('✅ Blob download message sent');
+                                        }
+                                    };
+                                    reader.readAsDataURL(blob);
+                                })
+                                .catch(function(error) {
+                                    console.error('❌ Blob fetch failed:', error);
+                                });
+                        } else {
+                            // 通常のダウンロードリンク
+                            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.blobDownload) {
+                                window.webkit.messageHandlers.blobDownload.postMessage({
+                                    url: href,
+                                    fileName: fileName
+                                });
+                            }
+                        }
+
+                        return false;
+                    }
+                }, true);
+
+                console.log('✅ Blob download detection script ready');
+            })();
+            """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+
         configuration.userContentController.addUserScript(mediaDetectionScript)
         configuration.userContentController.addUserScript(imageTapScript)
+        configuration.userContentController.addUserScript(blobDownloadScript)
 
         self.webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
@@ -395,6 +480,7 @@ class BrowserViewModel: NSObject, ObservableObject {
         webView.configuration.userContentController.add(self, name: "videoDetected")
         webView.configuration.userContentController.add(self, name: "videoStopped")
         webView.configuration.userContentController.add(self, name: "videoClicked")
+        webView.configuration.userContentController.add(self, name: "blobDownload")
         webView.navigationDelegate = self
         webView.uiDelegate = self
 
@@ -439,6 +525,7 @@ class BrowserViewModel: NSObject, ObservableObject {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDetected")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoStopped")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoClicked")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "blobDownload")
 
         // オブザーバーを解除
         progressObserver?.invalidate()
@@ -456,6 +543,7 @@ class BrowserViewModel: NSObject, ObservableObject {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDetected")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoStopped")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoClicked")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "blobDownload")
 
         // 新しいWebViewに切り替え
         webView = newWebView
@@ -470,6 +558,7 @@ class BrowserViewModel: NSObject, ObservableObject {
         webView.configuration.userContentController.add(self, name: "videoDetected")
         webView.configuration.userContentController.add(self, name: "videoStopped")
         webView.configuration.userContentController.add(self, name: "videoClicked")
+        webView.configuration.userContentController.add(self, name: "blobDownload")
 
         progressObserver = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] webView, _ in
             DispatchQueue.main.async {
@@ -829,34 +918,109 @@ extension BrowserViewModel: WKNavigationDelegate {
 
     // メディア検出時（自動ダウンロードは行わない）
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        // URLの拡張子でメディア判定
-        if let url = navigationAction.request.url,
-           isMediaFile(url: url) {
+        // URLの拡張子で判定
+        if let url = navigationAction.request.url {
+            // blob: URLへのナビゲーションをブロック（文字化けページ表示を防ぐ）
+            if url.scheme == "blob" {
+                print("🚫 blob: URL navigation blocked: \(url.absoluteString)")
 
-            print("🎬 動画ファイルへのナビゲーション検出: \(url.lastPathComponent)")
+                // JavaScriptでblob:データを取得してダウンロード
+                let urlString = url.absoluteString.replacingOccurrences(of: "'", with: "\\'")
+                let js = """
+                (function() {
+                    var blobUrl = '\(urlString)';
+                    console.log('📦 Fetching blob:', blobUrl);
 
-            // メディアURLを保存してボタン表示
-            DispatchQueue.main.async {
-                self.detectedMediaURL = url
-                self.detectedMediaFileName = url.lastPathComponent
+                    fetch(blobUrl)
+                        .then(function(response) { return response.blob(); })
+                        .then(function(blob) {
+                            console.log('✅ Blob fetched:', blob.size, 'bytes');
 
-                // カスタムプレーヤーを直接起動
-                print("🎬 カスタムプレーヤーを起動: \(url.lastPathComponent)")
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("ShowCustomVideoPlayer"),
-                    object: nil,
-                    userInfo: [
-                        "url": url,
-                        "fileName": url.lastPathComponent,
-                        "isDownloaded": false
-                    ]
-                )
+                            var reader = new FileReader();
+                            reader.onloadend = function() {
+                                var base64 = reader.result.split(',')[1];
+
+                                // ファイル名を推測（拡張子から）
+                                var fileName = 'download.zip';
+                                if (blob.type.includes('zip')) fileName = 'archive.zip';
+                                else if (blob.type.includes('pdf')) fileName = 'document.pdf';
+                                else if (blob.type.includes('image')) fileName = 'image.' + blob.type.split('/')[1];
+
+                                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.blobDownload) {
+                                    window.webkit.messageHandlers.blobDownload.postMessage({
+                                        url: blobUrl,
+                                        fileName: fileName,
+                                        data: base64,
+                                        mimeType: blob.type,
+                                        size: blob.size
+                                    });
+                                    console.log('✅ Blob download message sent');
+                                }
+                            };
+                            reader.readAsDataURL(blob);
+                        })
+                        .catch(function(error) {
+                            console.error('❌ Blob fetch failed:', error);
+                        });
+                })();
+                """
+
+                webView.evaluateJavaScript(js) { result, error in
+                    if let error = error {
+                        print("❌ JavaScript execution failed: \(error)")
+                    }
+                }
+
+                decisionHandler(.cancel)
+                return
             }
 
-            // 標準プレーヤーでの再生をキャンセル
-            print("✅ 標準ナビゲーションをキャンセル")
-            decisionHandler(.cancel)
-            return
+            // ZIPファイルまたは画像ファイルの場合はダウンロードダイアログを表示
+            if isDownloadableFile(url: url) {
+                print("📦 ダウンロード可能なファイル検出: \(url.lastPathComponent)")
+
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ShowDownloadDialog"),
+                        object: nil,
+                        userInfo: [
+                            "url": url,
+                            "fileName": url.lastPathComponent
+                        ]
+                    )
+                }
+
+                decisionHandler(.cancel)
+                return
+            }
+
+            // 動画・音声ファイルの場合はカスタムプレーヤーを起動
+            if isMediaFile(url: url) {
+                print("🎬 動画ファイルへのナビゲーション検出: \(url.lastPathComponent)")
+
+                // メディアURLを保存してボタン表示
+                DispatchQueue.main.async {
+                    self.detectedMediaURL = url
+                    self.detectedMediaFileName = url.lastPathComponent
+
+                    // カスタムプレーヤーを直接起動
+                    print("🎬 カスタムプレーヤーを起動: \(url.lastPathComponent)")
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ShowCustomVideoPlayer"),
+                        object: nil,
+                        userInfo: [
+                            "url": url,
+                            "fileName": url.lastPathComponent,
+                            "isDownloaded": false
+                        ]
+                    )
+                }
+
+                // 標準プレーヤーでの再生をキャンセル
+                print("✅ 標準ナビゲーションをキャンセル")
+                decisionHandler(.cancel)
+                return
+            }
         }
 
         decisionHandler(.allow)
@@ -866,6 +1030,129 @@ extension BrowserViewModel: WKNavigationDelegate {
         let mediaExtensions = ["mp4", "mov", "avi", "mkv", "webm", "mp3", "wav", "m4a", "flac"]
         let ext = url.pathExtension.lowercased()
         return mediaExtensions.contains(ext)
+    }
+
+    private func isDownloadableFile(url: URL) -> Bool {
+        let downloadableExtensions = [
+            "zip", "rar", "7z"  // アーカイブのみ（画像・PDFは通常表示）
+        ]
+        let ext = url.pathExtension.lowercased()
+        return downloadableExtensions.contains(ext)
+    }
+
+    // レスポンスヘッダーでダウンロード判定（Content-Typeなど）
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        guard let response = navigationResponse.response as? HTTPURLResponse,
+              let url = response.url else {
+            decisionHandler(.allow)
+            return
+        }
+
+        // Content-Typeでダウンロード判定
+        let contentType = response.allHeaderFields["Content-Type"] as? String ?? ""
+        let isAttachment = (response.allHeaderFields["Content-Disposition"] as? String ?? "").contains("attachment")
+
+        // ZIPファイルまたはアーカイブファイルの場合
+        let isArchive = contentType.contains("zip") ||
+                       contentType.contains("x-rar") ||
+                       contentType.contains("x-7z") ||
+                       isDownloadableFile(url: url)
+
+        if isArchive || isAttachment {
+            print("📦 ダウンロード可能なファイル検出（レスポンス）: \(url.lastPathComponent)")
+            print("   Content-Type: \(contentType)")
+
+            // iOS 14.5+の場合はWKDownloadを使用
+            if #available(iOS 14.5, *) {
+                print("✅ WKDownloadを開始します")
+                decisionHandler(.download)
+                return
+            }
+
+            // iOS 14.5未満の場合は従来の方法
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowDownloadDialog"),
+                    object: nil,
+                    userInfo: [
+                        "url": url,
+                        "fileName": url.lastPathComponent
+                    ]
+                )
+            }
+
+            decisionHandler(.cancel)
+            return
+        }
+
+        decisionHandler(.allow)
+    }
+
+    // iOS 14.5+: navigationResponseがダウンロードになった時
+    @available(iOS 14.5, *)
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        print("📦 WKDownload開始: \(download)")
+        download.delegate = self
+    }
+
+    // iOS 14.5+: navigationActionがダウンロードになった時
+    @available(iOS 14.5, *)
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        print("📦 WKDownload開始（navigationAction）: \(download)")
+        download.delegate = self
+    }
+}
+
+// MARK: - WKDownloadDelegate
+@available(iOS 14.5, *)
+extension BrowserViewModel: WKDownloadDelegate {
+    // ダウンロード開始時の保存先を決定
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        print("📦 ダウンロード保存先決定: \(suggestedFilename)")
+
+        // 一時ディレクトリに保存
+        let tempDir = FileManager.default.temporaryDirectory
+        let destinationURL = tempDir.appendingPathComponent(suggestedFilename)
+
+        // 既存ファイルを削除
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try? FileManager.default.removeItem(at: destinationURL)
+        }
+
+        print("✅ 保存先: \(destinationURL.path)")
+        completionHandler(destinationURL)
+    }
+
+    // ダウンロード完了
+    func downloadDidFinish(_ download: WKDownload) {
+        print("✅ ダウンロード完了")
+
+        // ダウンロードダイアログを表示
+        if let originalURL = download.originalRequest?.url {
+            let fileName = originalURL.lastPathComponent
+            print("📦 ダウンロード完了ダイアログ表示: \(fileName)")
+
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowDownloadDialog"),
+                    object: nil,
+                    userInfo: [
+                        "url": originalURL,
+                        "fileName": fileName
+                    ]
+                )
+            }
+        }
+    }
+
+    // ダウンロード失敗
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        print("❌ ダウンロード失敗: \(error.localizedDescription)")
+
+        DispatchQueue.main.async {
+            self.loadError = error
+            self.showErrorAlert = true
+        }
     }
 }
 
@@ -953,6 +1240,54 @@ extension BrowserViewModel: WKScriptMessageHandler {
                     object: nil,
                     userInfo: ["url": url, "fileName": fileName, "type": "image"]
                 )
+            }
+        } else if message.name == "blobDownload",
+                  let dict = message.body as? [String: Any],
+                  let fileName = dict["fileName"] as? String {
+
+            DispatchQueue.main.async {
+                print("📦 Blob download detected: \(fileName)")
+
+                // blob: URLの場合はbase64データがある
+                if let base64Data = dict["data"] as? String,
+                   let data = Data(base64Encoded: base64Data) {
+
+                    print("✅ Blob data received: \(data.count) bytes")
+
+                    // 一時ファイルに保存
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let tempFile = tempDir.appendingPathComponent(fileName)
+
+                    do {
+                        try data.write(to: tempFile)
+                        print("✅ Blob saved to temp file: \(tempFile.path)")
+
+                        // ダウンロードダイアログを表示
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("ShowDownloadDialog"),
+                            object: nil,
+                            userInfo: [
+                                "url": tempFile,
+                                "fileName": fileName
+                            ]
+                        )
+                    } catch {
+                        print("❌ Failed to save blob: \(error)")
+                    }
+                } else if let urlString = dict["url"] as? String,
+                          let url = URL(string: urlString) {
+                    // 通常のダウンロードリンク
+                    print("📦 Download link detected: \(urlString)")
+
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ShowDownloadDialog"),
+                        object: nil,
+                        userInfo: [
+                            "url": url,
+                            "fileName": fileName
+                        ]
+                    )
+                }
             }
         }
     }

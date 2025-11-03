@@ -41,6 +41,10 @@ struct DownloadListView: View {
     @State private var isDownloading = false
     @State private var downloadingFileName = ""
     @State private var selectedVideoFile: DownloadedFile?  // 選択された動画ファイル
+    @State private var showUnzipProgress = false  // ZIP解凍中の表示
+    @State private var unzippingFileName = ""  // 解凍中のファイル名
+    @State private var showUnzipError = false  // ZIP解凍エラー表示
+    @State private var unzipErrorMessage = ""  // エラーメッセージ
 
     var filteredDownloads: [DownloadedFile] {
         if searchText.isEmpty {
@@ -61,9 +65,16 @@ struct DownloadListView: View {
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // 検索バーとソートメニュー
-                HStack {
+            mainContent
+        }
+        .overlay(unzipProgressOverlay)
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        VStack(spacing: 0) {
+            // 検索バーとソートメニュー
+            HStack {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.secondary)
@@ -207,7 +218,6 @@ struct DownloadListView: View {
                     // ホームのファイル（フォルダなし）
                     homeFilesSection
                 }
-            }
             }
             .navigationTitle(selectedFolderForView ?? "ダウンロード")
             .navigationBarTitleDisplayMode(.inline)
@@ -381,6 +391,40 @@ struct DownloadListView: View {
                     )
                 }
             }
+            .alert("ZIP解凍エラー", isPresented: $showUnzipError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(unzipErrorMessage)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var unzipProgressOverlay: some View {
+        if showUnzipProgress {
+            ZStack {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+
+                    Text("解凍中...")
+                        .font(.headline)
+                        .foregroundColor(.white)
+
+                    Text(unzippingFileName)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+                .padding(32)
+                .background(Color(.systemGray).opacity(0.9))
+                .cornerRadius(16)
+            }
         }
     }
 
@@ -496,6 +540,58 @@ struct DownloadListView: View {
                 Label("移動", systemImage: "folder")
             }
             .tint(.orange)
+
+            // ZIPファイルの場合は解凍ボタンを表示
+            if let fileName = download.fileName, fileName.lowercased().hasSuffix(".zip") {
+                Button {
+                    unzipFile(download)
+                } label: {
+                    Label("解凍", systemImage: "archivebox")
+                }
+                .tint(.green)
+            }
+        }
+    }
+
+    /// ZIPファイルを解凍する
+    private func unzipFile(_ file: DownloadedFile) {
+        guard let relativePath = file.filePath,
+              let fileName = file.fileName,
+              let folder = file.folder else {
+            print("❌ ファイル情報が不正です")
+            return
+        }
+
+        // 解凍中表示を開始
+        unzippingFileName = fileName
+        showUnzipProgress = true
+
+        Task {
+            do {
+                let absolutePath = DownloadService.shared.getAbsolutePath(from: relativePath)
+
+                // ZIP解凍
+                let unzippedURL = try ZipUtility.shared.unzip(
+                    zipPath: absolutePath,
+                    destinationFolder: folder
+                )
+
+                // 解凍完了後、リストを更新
+                await MainActor.run {
+                    showUnzipProgress = false
+                    loadDownloads()
+                    loadFolders()
+
+                    print("✅ 解凍完了: \(unzippedURL.path)")
+                }
+            } catch {
+                await MainActor.run {
+                    showUnzipProgress = false
+                    unzipErrorMessage = error.localizedDescription
+                    showUnzipError = true
+                    print("❌ ZIP解凍エラー: \(error.localizedDescription)")
+                }
+            }
         }
     }
 
