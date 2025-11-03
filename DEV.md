@@ -32,6 +32,14 @@ develop (開発ブランチ、デフォルト) ← 日常作業
 feature/xxx, fix/xxx (作業ブランチ)
 ```
 
+**現在の作業ブランチ:**
+- `develop` - メインの開発ブランチ（タブ複製修正済み）
+- `feature/blob-url-download` - blob: URLダウンロード機能の調査・実装中（WIP）
+  - 内容: Hitomi.laなどのblob: URLのZIPファイルダウンロード機能
+  - 状況: 実装は完了しているがダイアログ表示の問題で保留中
+  - 詳細: 下記「🔍 調査中: blob: URLダウンロード機能」セクション参照
+  - 再開方法: `git checkout feature/blob-url-download`
+
 **詳細:** [docs/02-development/git-workflow.md](docs/02-development/git-workflow.md)
 
 **基本フロー:**

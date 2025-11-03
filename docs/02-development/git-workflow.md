@@ -271,4 +271,4 @@ git branch --merged develop | grep -v "^\*\|main\|develop" | xargs git branch -d
 
 ---
 
-**次のステップ:** [CLAUDE.md](../../CLAUDE.md) で開発ルール全体を確認
+**次のステップ:** [DEV.md](../../DEV.md) で開発ルール全体を確認

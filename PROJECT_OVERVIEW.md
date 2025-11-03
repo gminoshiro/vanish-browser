@@ -125,7 +125,7 @@ VanishBrowser/
 │   ├── 02-development/        # 開発ガイド
 │   ├── 03-launch/             # リリース手順
 │   └── 04-improvements/       # 改善チケット
-├── CLAUDE.md                   # 開発管理（AI向け）
+├── DEV.md                      # 開発管理（AI/エディタ向け）
 ├── README.md                   # プロジェクト説明
 └── PROJECT_OVERVIEW.md         # 本ファイル
 ```
