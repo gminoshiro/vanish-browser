@@ -32,6 +32,15 @@ struct PasscodeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // タイトル
+            Text(title)
+                .font(.title2)
+                .fontWeight(.medium)
+                .padding(.top, 10)
+
+            Spacer()
+                .frame(height: 20)
+
             // パスコード表示（ドット）
             HStack(spacing: 20) {
                 ForEach(0..<maxDigits, id: \.self) { index in

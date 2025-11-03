@@ -21,7 +21,7 @@ class BookmarkService {
         bookmark.id = UUID()
         bookmark.title = title
         bookmark.url = url
-        bookmark.folder = folder.isEmpty ? nil : folder
+        bookmark.folder = folder.isEmpty ? "未分類" : folder
         bookmark.createdAt = Date()
 
         do {
