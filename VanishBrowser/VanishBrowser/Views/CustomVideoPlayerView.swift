@@ -75,7 +75,8 @@ struct CustomVideoPlayerView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.leading, max(geometry.safeAreaInsets.leading, 20))
+                        .padding(.trailing, max(geometry.safeAreaInsets.trailing, 20))
                         .padding(.top, max(geometry.safeAreaInsets.top, 16))
                         .padding(.bottom, 16)
                         .background(
@@ -111,67 +112,64 @@ struct CustomVideoPlayerView: View {
                                     .font(.caption)
                                     .monospacedDigit()
                             }
-                            .padding(.horizontal, 20)
+                            .padding(.leading, max(geometry.safeAreaInsets.leading, 20))
+                            .padding(.trailing, max(geometry.safeAreaInsets.trailing, 20))
 
                             // 再生ボタンとダウンロードボタン
-                            HStack(spacing: 24) {
+                            HStack(spacing: 0) {
                                 // 左側エリア（DLボタンまたは空白）
                                 if showDownloadButton {
                                     Button(action: {
                                         print("📥 DLボタン押下: \(videoFileName)")
                                         print("📥 URL: \(videoURL.absoluteString)")
-                                        // プレーヤーを閉じずにダイアログを表示
                                         playerViewModel.pause()
                                         showDownloadDialog = true
                                     }) {
                                         Image(systemName: "arrow.down.circle.fill")
-                                            .font(.system(size: 32))
+                                            .font(.system(size: 22))
                                             .foregroundColor(.white)
-                                            .background(
-                                                Circle()
-                                                    .fill(Color.blue)
-                                                    .frame(width: 36, height: 36)
-                                            )
+                                            .frame(width: 36, height: 36)
                                     }
+                                    .padding(.leading, 8)
                                 } else {
-                                    // DLボタンがない場合は同じサイズの空白を配置
                                     Color.clear
                                         .frame(width: 36, height: 36)
+                                        .padding(.leading, 8)
                                 }
 
-                                Spacer()
+                                Spacer(minLength: 12)
 
                                 // 中央: 再生コントロール
-                                HStack(spacing: 32) {
-                                    // 巻き戻しボタン
+                                HStack(spacing: 18) {
                                     Button(action: {
                                         playerViewModel.skipBackward()
                                     }) {
                                         Image(systemName: "gobackward.10")
-                                            .font(.system(size: 32))
+                                            .font(.system(size: 22))
                                             .foregroundColor(.white)
+                                            .frame(width: 36, height: 36)
                                     }
 
-                                    // 再生/一時停止ボタン
                                     Button(action: {
                                         playerViewModel.togglePlayPause()
                                     }) {
                                         Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
-                                            .font(.system(size: 36))
+                                            .font(.system(size: 26))
                                             .foregroundColor(.white)
+                                            .frame(width: 40, height: 40)
                                     }
 
-                                    // 早送りボタン
                                     Button(action: {
                                         playerViewModel.skipForward()
                                     }) {
                                         Image(systemName: "goforward.10")
-                                            .font(.system(size: 32))
+                                            .font(.system(size: 22))
                                             .foregroundColor(.white)
+                                            .frame(width: 36, height: 36)
                                     }
                                 }
 
-                                Spacer()
+                                Spacer(minLength: 12)
 
                                 // 右側: その他メニュー
                                 Menu {
@@ -197,12 +195,14 @@ struct CustomVideoPlayerView: View {
                                     }
                                 } label: {
                                     Image(systemName: "ellipsis")
-                                        .font(.system(size: 24))
+                                        .font(.system(size: 16))
                                         .foregroundColor(.white)
                                         .frame(width: 36, height: 36)
                                 }
+                                .padding(.trailing, 8)
                             }
-                            .padding(.horizontal, 24)
+                            .padding(.leading, max(geometry.safeAreaInsets.leading, 20))
+                            .padding(.trailing, max(geometry.safeAreaInsets.trailing, 20))
                             .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20))
                         }
                         .background(
