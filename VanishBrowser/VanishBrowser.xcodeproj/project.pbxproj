@@ -30,8 +30,8 @@
 
 /* Begin PBXFileReference section */
 		42BE106D2E9734B400CE7895 /* Vanish.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vanish.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		42BE107F2E9734B700CE7895 /* VanishBrowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = VanishBrowserTests.xctest; path = Vanish.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		42BE10892E9734B700CE7895 /* VanishBrowserUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = VanishBrowserUITests.xctest; path = Vanish.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		42BE107F2E9734B700CE7895 /* VanishBrowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VanishBrowserTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		42BE10892E9734B700CE7895 /* VanishBrowserUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VanishBrowserUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -431,7 +431,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vanishbrowser.VanishBrowser;
 				PRODUCT_NAME = Vanish;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -468,7 +468,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vanishbrowser.VanishBrowser;
 				PRODUCT_NAME = Vanish;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
