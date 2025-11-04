@@ -36,7 +36,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "42BE107E2E9734B700CE7895"
-               BuildableName = "Vanish.xctest"
+               BuildableName = "VanishBrowserTests.xctest"
                BlueprintName = "VanishBrowserTests"
                ReferencedContainer = "container:VanishBrowser.xcodeproj">
             </BuildableReference>
@@ -47,7 +47,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "42BE10882E9734B700CE7895"
-               BuildableName = "Vanish.xctest"
+               BuildableName = "VanishBrowserUITests.xctest"
                BlueprintName = "VanishBrowserUITests"
                ReferencedContainer = "container:VanishBrowser.xcodeproj">
             </BuildableReference>

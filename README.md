@@ -73,7 +73,7 @@
 ```
 vanish-browser/
 ├── README.md              # プロジェクト概要（本ファイル）
-├── CLAUDE.md              # 開発管理・次にやること
+├── DEV.md                 # 開発管理・次にやること
 ├── docs/                  # ドキュメント
 │   ├── 01-product/       # プロダクト・ビジネス戦略
 │   ├── 02-development/   # 開発・テスト
@@ -94,7 +94,7 @@ vanish-browser/
 
 開発管理・詳細情報は以下を参照：
 
-- **[CLAUDE.md](CLAUDE.md)** - 開発管理・開発ルール・重要ファイル一覧
+- **[DEV.md](DEV.md)** - 開発管理・開発ルール・重要ファイル一覧
 - **[docs/01-product/](docs/01-product/)** - プロダクトコンセプト・競合分析・マネタイズ
 - **[docs/02-development/](docs/02-development/)** - 環境構築・技術スタック・テスト計画
 - **[docs/03-launch/](docs/03-launch/)** - App Store掲載情報・プライバシーポリシー

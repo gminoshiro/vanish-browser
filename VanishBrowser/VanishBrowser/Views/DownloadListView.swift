@@ -40,6 +40,7 @@ struct DownloadListView: View {
     @State private var downloadProgress: Float = 0.0
     @State private var isDownloading = false
     @State private var downloadingFileName = ""
+    @State private var selectedVideoFile: DownloadedFile?  // 選択された動画ファイル
 
     var filteredDownloads: [DownloadedFile] {
         if searchText.isEmpty {
@@ -144,66 +145,7 @@ struct DownloadListView: View {
                     // フォルダ内のファイル表示
                     let folderFiles = filesInFolder(selectedFolderForView!)
                     ForEach(Array(folderFiles.enumerated()), id: \.element.id) { index, download in
-                        NavigationLink(destination: FileViewerView(
-                            file: download,
-                            allFiles: folderFiles,
-                            currentIndex: index
-                        )) {
-                            HStack(spacing: 12) {
-                                ThumbnailView(file: download)
-                                    .frame(width: 60, height: 60)
-                                    .cornerRadius(8)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(download.fileName ?? "無題")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                        .lineLimit(2)
-
-                                    HStack {
-                                        Text(DownloadService.shared.formatFileSize(download.fileSize))
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-
-                                        if let date = download.downloadedAt {
-                                            Text("•")
-                                                .foregroundColor(.secondary)
-                                            Text(date.formatted(date: .abbreviated, time: .omitted))
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
-                                }
-
-                                Spacer()
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                DownloadService.shared.deleteFile(download)
-                                loadDownloads()
-                            } label: {
-                                Label("削除", systemImage: "trash")
-                            }
-
-                            Button {
-                                selectedFile = download
-                                newFileName = download.fileName ?? ""
-                                showRenameFile = true
-                            } label: {
-                                Label("名前変更", systemImage: "pencil")
-                            }
-                            .tint(.blue)
-
-                            Button {
-                                selectedFile = download
-                                showFolderPicker = true
-                            } label: {
-                                Label("移動", systemImage: "folder")
-                            }
-                            .tint(.orange)
-                        }
+                        fileRow(for: download, allFiles: folderFiles, index: index)
                     }
                 } else if filteredDownloads.isEmpty && folders.isEmpty {
                     VStack(spacing: 16) {
@@ -424,6 +366,21 @@ struct DownloadListView: View {
                     folderToRename = ""
                 }
             }
+            .fullScreenCover(item: $selectedVideoFile) { videoFile in
+                if let relativePath = videoFile.filePath {
+                    let absolutePath = DownloadService.shared.getAbsolutePath(from: relativePath)
+                    let videoURL = URL(fileURLWithPath: absolutePath)
+                    CustomVideoPlayerView(
+                        videoURL: videoURL,
+                        videoFileName: videoFile.fileName ?? "無題",
+                        showDownloadButton: false,
+                        isPresented: Binding(
+                            get: { selectedVideoFile != nil },
+                            set: { if !$0 { selectedVideoFile = nil } }
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -457,42 +414,63 @@ struct DownloadListView: View {
         loadFolders()
     }
 
+    private func isVideoFile(_ file: DownloadedFile) -> Bool {
+        guard let fileName = file.fileName else { return false }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return ["mp4", "mov", "m4v", "avi", "mkv", "webm", "m3u8"].contains(ext)
+    }
+
     @ViewBuilder
     private func fileRow(for download: DownloadedFile, allFiles: [DownloadedFile], index: Int) -> some View {
-        NavigationLink(destination: FileViewerView(
-            file: download,
-            allFiles: allFiles,
-            currentIndex: index
-        )) {
-            HStack(spacing: 12) {
-                ThumbnailView(file: download)
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
+        let fileContent = HStack(spacing: 12) {
+            ThumbnailView(file: download)
+                .frame(width: 60, height: 60)
+                .cornerRadius(8)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(download.fileName ?? "無題")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .lineLimit(2)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(download.fileName ?? "無題")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
 
-                    HStack {
-                        Text(DownloadService.shared.formatFileSize(download.fileSize))
+                HStack {
+                    Text(DownloadService.shared.formatFileSize(download.fileSize))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if let date = download.downloadedAt {
+                        Text("•")
+                            .foregroundColor(.secondary)
+                        Text(date.formatted(date: .abbreviated, time: .omitted))
                             .font(.caption)
                             .foregroundColor(.secondary)
-
-                        if let date = download.downloadedAt {
-                            Text("•")
-                                .foregroundColor(.secondary)
-                            Text(date.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
                     }
                 }
-
-                Spacer()
             }
-            .padding(.vertical, 4)
+
+            Spacer()
+        }
+        .padding(.vertical, 4)
+
+        Group {
+            if isVideoFile(download) {
+                // 動画の場合はButtonで直接プレーヤーを開く
+                Button(action: {
+                    selectedVideoFile = download
+                }) {
+                    fileContent
+                }
+                .buttonStyle(.plain)
+            } else {
+                // 画像やその他のファイルはNavigationLink
+                NavigationLink(destination: FileViewerView(
+                    file: download,
+                    allFiles: allFiles,
+                    currentIndex: index
+                )) {
+                    fileContent
+                }
+            }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {

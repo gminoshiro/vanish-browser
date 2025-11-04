@@ -17,62 +17,44 @@ struct AuthenticationView: View {
     @AppStorage("useBiometric") private var useBiometric: Bool = true
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 上部: アイコンとタイトル
-            Spacer()
-                .frame(height: 60)
-
-            Image(systemName: "lock.shield")
-                .font(.system(size: 80))
-                .foregroundColor(.blue)
-
-            Spacer()
-                .frame(height: 20)
-
-            Text("Vanish Browser")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            if useBiometric && BiometricAuthService.shared.canUseBiometrics() && authError == nil {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
                 Spacer()
-                    .frame(height: 10)
 
-                Text("\(BiometricAuthService.shared.biometricType())で認証")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            // パスコード入力（生体認証失敗時も表示）
-            if !useBiometric || !BiometricAuthService.shared.canUseBiometrics() || authError != nil {
                 VStack(spacing: 0) {
-                    if let error = authError {
-                        Text(error)
-                            .font(.subheadline)
-                            .foregroundColor(.red)
-                            .padding(.bottom, 10)
-                    }
+                    // パスコード入力（生体認証失敗時も表示）
+                    if !useBiometric || !BiometricAuthService.shared.canUseBiometrics() || authError != nil {
+                        VStack(spacing: 0) {
+                            if let error = authError {
+                                Text(error)
+                                    .font(.subheadline)
+                                    .foregroundColor(.red)
+                                    .padding(.bottom, 10)
+                            }
 
-                    PasscodeView(
-                        title: "パスコードを入力",
-                        subtitle: nil,
-                        passcode: $password,
-                        maxDigits: 4
-                    ) { enteredPasscode in
-                        authenticateWithPassword(enteredPasscode)
-                    }
+                            PasscodeView(
+                                title: "パスコードを入力",
+                                subtitle: nil,
+                                passcode: $password,
+                                maxDigits: 4
+                            ) { enteredPasscode in
+                                authenticateWithPassword(enteredPasscode)
+                            }
 
-                    // パスコードを忘れた場合のリンク
-                    Button("パスコードを忘れた場合") {
-                        showResetAlert = true
+                            // パスコードを忘れた場合のリンク
+                            Button("パスコードを忘れた場合") {
+                                showResetAlert = true
+                            }
+                            .font(.footnote)
+                            .foregroundColor(.blue)
+                            .padding(.top, 10)
+                        }
                     }
-                    .font(.footnote)
-                    .foregroundColor(.blue)
-                    .padding(.top, 10)
-                    .padding(.bottom, 40)
                 }
+
+                Spacer()
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .alert("⚠️ すべてのデータを削除", isPresented: $showResetAlert) {
             Button("キャンセル", role: .cancel) {}
@@ -122,9 +104,15 @@ struct AuthenticationView: View {
         } else if enteredPassword == savedPassword {
             isAuthenticated = true
         } else {
+            // 認証失敗時の処理
             authError = "パスコードが違います"
-            password = ""
-            // 0.5秒後にエラーメッセージをクリア
+
+            // パスコードを即座にクリア
+            DispatchQueue.main.async {
+                password = ""
+            }
+
+            // 1.5秒後にエラーメッセージをクリア
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 authError = nil
             }

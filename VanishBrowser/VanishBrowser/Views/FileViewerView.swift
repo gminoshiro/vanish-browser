@@ -46,9 +46,10 @@ struct FileViewerView: View {
                 .foregroundColor(.white)
         } else if let image = image {
             imageView(image: image)
-        } else if showCustomVideoPlayer {
-            // カスタムプレーヤーはfullScreenCoverで表示されるので透明表示
-            Color.clear
+        } else if showCustomVideoPlayer || isVideoFile(currentFile) {
+            // カスタムプレーヤーはfullScreenCoverで表示されるので黒背景を維持
+            // 動画ファイルの場合は常に黒背景（プレーヤー終了後も）
+            Color.black
         } else {
             QuickLookView(url: fileURL)
         }
@@ -121,8 +122,8 @@ struct FileViewerView: View {
 
             contentView
 
-            // ツールバー（画像のみ、タップで表示/非表示）
-            if showToolbar && isImageFile(currentFile) {
+            // ツールバー（画像またはプレーヤー終了後の動画）
+            if showToolbar && (isImageFile(currentFile) || (!showCustomVideoPlayer && isVideoFile(currentFile))) {
                 VStack {
                     // 上部ツールバー
                     HStack {
@@ -143,10 +144,13 @@ struct FileViewerView: View {
 
                         Spacer()
 
-                        ShareLink(item: currentFileURL) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 24))
-                                .foregroundColor(.white)
+                        // 共有ボタン（画像と動画のみ）
+                        if isImageFile(currentFile) || isVideoFile(currentFile) {
+                            ShareLink(item: currentFileURL) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 24))
+                                    .foregroundColor(.white)
+                            }
                         }
                     }
                     .padding(.horizontal)
@@ -165,18 +169,13 @@ struct FileViewerView: View {
                 .transition(.opacity)
             }
         }
-        .fullScreenCover(isPresented: $showCustomVideoPlayer, onDismiss: {
-            // 動画プレーヤーが閉じられたら、少し待ってからFileViewerViewも閉じる
-            print("🎬 動画プレーヤーが閉じられました。0.1秒後にFileViewerViewも閉じます。")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                dismiss()
-            }
-        }) {
+        .fullScreenCover(isPresented: $showCustomVideoPlayer) {
             CustomVideoPlayerView(
                 videoURL: fileURL,
                 videoFileName: file.fileName ?? "無題",
                 showDownloadButton: false,  // DL済みなのでDLボタンなし
                 isPresented: $showCustomVideoPlayer
+                // onCloseなし = プレーヤーだけ閉じてFileViewerViewに戻る
             )
         }
         .onAppear {
@@ -212,6 +211,12 @@ struct FileViewerView: View {
         guard let fileName = file.fileName else { return false }
         let ext = (fileName as NSString).pathExtension.lowercased()
         return ["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext)
+    }
+
+    private func isVideoFile(_ file: DownloadedFile) -> Bool {
+        guard let fileName = file.fileName else { return false }
+        let ext = (fileName as NSString).pathExtension.lowercased()
+        return ["mp4", "mov", "m4v", "avi", "mkv", "webm", "m3u8"].contains(ext)
     }
 
     private func navigateToPrevious() {

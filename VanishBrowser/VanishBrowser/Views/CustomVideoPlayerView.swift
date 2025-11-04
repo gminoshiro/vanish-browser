@@ -14,6 +14,7 @@ struct CustomVideoPlayerView: View {
     let videoFileName: String
     let showDownloadButton: Bool  // DLボタンの表示/非表示
     @Binding var isPresented: Bool
+    var onClose: (() -> Void)?  // FileViewerViewも閉じるためのクロージャ
     @StateObject private var playerViewModel: VideoPlayerViewModel
     @State private var showControls = true
     @State private var hideControlsTask: Task<Void, Never>?
@@ -21,7 +22,7 @@ struct CustomVideoPlayerView: View {
     @State private var showShareSheet = false
     @State private var downloadFileName: String
 
-    init(videoURL: URL, videoFileName: String, showDownloadButton: Bool = true, isPresented: Binding<Bool>) {
+    init(videoURL: URL, videoFileName: String, showDownloadButton: Bool = true, isPresented: Binding<Bool>, onClose: (() -> Void)? = nil) {
         print("🎬 CustomVideoPlayerView初期化")
         print("🎬 videoURL: \(videoURL.absoluteString)")
         print("🎬 videoFileName: \(videoFileName)")
@@ -32,6 +33,7 @@ struct CustomVideoPlayerView: View {
         self.videoFileName = videoFileName
         self.showDownloadButton = showDownloadButton
         self._isPresented = isPresented
+        self.onClose = onClose
         self._playerViewModel = StateObject(wrappedValue: VideoPlayerViewModel(url: videoURL))
         self._downloadFileName = State(initialValue: videoFileName)
     }
@@ -53,6 +55,7 @@ struct CustomVideoPlayerView: View {
                             // 左上: ×ボタン
                             Button(action: {
                                 isPresented = false
+                                onClose?()  // FileViewerViewも閉じる
                             }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 32))
@@ -72,7 +75,8 @@ struct CustomVideoPlayerView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.leading, max(geometry.safeAreaInsets.leading, 20))
+                        .padding(.trailing, max(geometry.safeAreaInsets.trailing, 20))
                         .padding(.top, max(geometry.safeAreaInsets.top, 16))
                         .padding(.bottom, 16)
                         .background(
@@ -108,62 +112,66 @@ struct CustomVideoPlayerView: View {
                                     .font(.caption)
                                     .monospacedDigit()
                             }
-                            .padding(.horizontal, 20)
+                            .padding(.leading, max(geometry.safeAreaInsets.leading, 20))
+                            .padding(.trailing, max(geometry.safeAreaInsets.trailing, 20))
 
                             // 再生ボタンとダウンロードボタン
-                            HStack(spacing: 24) {
-                                // ダウンロードボタン（DL前のみ表示）
+                            HStack(spacing: 0) {
+                                // 左側エリア（DLボタンまたは空白）
                                 if showDownloadButton {
                                     Button(action: {
                                         print("📥 DLボタン押下: \(videoFileName)")
                                         print("📥 URL: \(videoURL.absoluteString)")
-                                        // プレーヤーを閉じずにダイアログを表示
                                         playerViewModel.pause()
                                         showDownloadDialog = true
                                     }) {
                                         Image(systemName: "arrow.down.circle.fill")
-                                            .font(.system(size: 32))
+                                            .font(.system(size: 22))
                                             .foregroundColor(.white)
-                                            .background(
-                                                Circle()
-                                                    .fill(Color.blue)
-                                                    .frame(width: 36, height: 36)
-                                            )
+                                            .frame(width: 36, height: 36)
+                                    }
+                                    .padding(.leading, 8)
+                                } else {
+                                    Color.clear
+                                        .frame(width: 36, height: 36)
+                                        .padding(.leading, 8)
+                                }
+
+                                Spacer(minLength: 12)
+
+                                // 中央: 再生コントロール
+                                HStack(spacing: 18) {
+                                    Button(action: {
+                                        playerViewModel.skipBackward()
+                                    }) {
+                                        Image(systemName: "gobackward.10")
+                                            .font(.system(size: 22))
+                                            .foregroundColor(.white)
+                                            .frame(width: 36, height: 36)
+                                    }
+
+                                    Button(action: {
+                                        playerViewModel.togglePlayPause()
+                                    }) {
+                                        Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
+                                            .font(.system(size: 26))
+                                            .foregroundColor(.white)
+                                            .frame(width: 40, height: 40)
+                                    }
+
+                                    Button(action: {
+                                        playerViewModel.skipForward()
+                                    }) {
+                                        Image(systemName: "goforward.10")
+                                            .font(.system(size: 22))
+                                            .foregroundColor(.white)
+                                            .frame(width: 36, height: 36)
                                     }
                                 }
 
-                                Spacer()
+                                Spacer(minLength: 12)
 
-                                // 巻き戻しボタン
-                                Button(action: {
-                                    playerViewModel.skipBackward()
-                                }) {
-                                    Image(systemName: "gobackward.10")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(.white)
-                                }
-
-                                // 再生/一時停止ボタン
-                                Button(action: {
-                                    playerViewModel.togglePlayPause()
-                                }) {
-                                    Image(systemName: playerViewModel.isPlaying ? "pause.fill" : "play.fill")
-                                        .font(.system(size: 36))
-                                        .foregroundColor(.white)
-                                }
-
-                                // 早送りボタン
-                                Button(action: {
-                                    playerViewModel.skipForward()
-                                }) {
-                                    Image(systemName: "goforward.10")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(.white)
-                                }
-
-                                Spacer()
-
-                                // その他メニュー
+                                // 右側: その他メニュー
                                 Menu {
                                     Button(action: {
                                         playerViewModel.changeSpeed(0.5)
@@ -187,12 +195,14 @@ struct CustomVideoPlayerView: View {
                                     }
                                 } label: {
                                     Image(systemName: "ellipsis")
-                                        .font(.system(size: 24))
+                                        .font(.system(size: 16))
                                         .foregroundColor(.white)
                                         .frame(width: 36, height: 36)
                                 }
+                                .padding(.trailing, 8)
                             }
-                            .padding(.horizontal, 24)
+                            .padding(.leading, max(geometry.safeAreaInsets.leading, 20))
+                            .padding(.trailing, max(geometry.safeAreaInsets.trailing, 20))
                             .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20))
                         }
                         .background(

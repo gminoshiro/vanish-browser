@@ -83,7 +83,7 @@ struct PasscodeSettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("キャンセル") {
+                    Button("閉じる") {
                         dismiss()
                     }
                 }

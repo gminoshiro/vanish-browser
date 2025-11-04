@@ -11,9 +11,6 @@ struct TabManagerView: View {
     @ObservedObject var tabManager: TabManager
     @Environment(\.dismiss) var dismiss
     @State private var selectedMode: TabMode = .normal
-    @State private var draggingTab: Tab?
-    @State private var dragOffset: CGFloat = 0
-    @State private var isReorderMode: Bool = false
 
     enum TabMode: String, CaseIterable {
         case normal = "通常"
@@ -64,15 +61,6 @@ struct TabManagerView: View {
 
                     Spacer()
 
-                    // 並び替えボタン
-                    Button(action: {
-                        isReorderMode.toggle()
-                    }) {
-                        Image(systemName: isReorderMode ? "arrow.up.arrow.down.circle.fill" : "arrow.up.arrow.down.circle")
-                            .font(.system(size: 20))
-                            .foregroundColor(isReorderMode ? .blue : .primary)
-                    }
-
                     // 新規タブボタン
                     Button(action: {
                         // 現在のモードに応じて新規タブを作成
@@ -86,8 +74,8 @@ struct TabManagerView: View {
                 .padding()
 
                 // タブカード一覧
-                ScrollView {
-                    VStack(spacing: 16) {
+                ScrollViewReader { proxy in
+                    List {
                         ForEach(filteredTabs, id: \.id) { tab in
                             TabCardView(
                                 tab: tab,
@@ -100,9 +88,24 @@ struct TabManagerView: View {
                                     tabManager.closeTab(tab.id)
                                 }
                             )
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .id(tab.id)
+                        }
+                        .onMove { source, destination in
+                            tabManager.moveTabs(from: source, to: destination, isPrivate: selectedMode == .private_)
                         }
                     }
-                    .padding()
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .onChange(of: tabManager.currentTabId) { _, newTabId in
+                        if let newTabId = newTabId {
+                            withAnimation {
+                                proxy.scrollTo(newTabId, anchor: .center)
+                            }
+                        }
+                    }
                 }
 
                 Spacer()
@@ -233,7 +236,10 @@ struct TabCardView: View {
                 NotificationCenter.default.post(
                     name: NSNotification.Name("DuplicateTab"),
                     object: nil,
-                    userInfo: ["url": tab.url]
+                    userInfo: [
+                        "url": tab.url,
+                        "isPrivate": tab.isPrivate
+                    ]
                 )
             }) {
                 Label("タブを複製", systemImage: "plus.square.on.square")

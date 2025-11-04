@@ -1,15 +1,21 @@
 # VanishBrowser 開発管理
 
-**最終更新: 2025-10-29**
+**最終更新: 2025-11-01**
 **リリース準備度: 100%**
 **現在のブランチ: develop**
+**審査状況: v1.0.2 審査中（2025-10-31提出）**
 
 ---
 
 ## 🚀 次にやること
 
-1. **App Store審査待ち** - v1.0提出済み
-2. **次期バージョン開発** - developブランチで継続
+1. **App Store審査待ち** - v1.0.2審査中
+2. **v1.0.3準備** - developブランチでUI/UX改善完了
+   - 自動削除設定画面のUI改善
+   - ホーム画面のYahoo! JAPAN対応
+   - ビデオプレーヤーの再生ボタン中央配置
+   - 動画プレーヤーの閉じるアニメーション改善
+   - ブックマークのタイトル省略表示
 
 ---
 
@@ -25,6 +31,14 @@ develop (開発ブランチ、デフォルト) ← 日常作業
   ↑ 直接コミット
 feature/xxx, fix/xxx (作業ブランチ)
 ```
+
+**現在の作業ブランチ:**
+- `develop` - メインの開発ブランチ（タブ複製修正済み）
+- `feature/blob-url-download` - blob: URLダウンロード機能の調査・実装中（WIP）
+  - 内容: Hitomi.laなどのblob: URLのZIPファイルダウンロード機能
+  - 状況: 実装は完了しているがダイアログ表示の問題で保留中
+  - 詳細: 下記「🔍 調査中: blob: URLダウンロード機能」セクション参照
+  - 再開方法: `git checkout feature/blob-url-download`
 
 **詳細:** [docs/02-development/git-workflow.md](docs/02-development/git-workflow.md)
 
@@ -56,6 +70,24 @@ feature/xxx, fix/xxx (作業ブランチ)
 - **メッセージ**: `fix: BUG-XXX ...` / `feat: FEATURE-XXX ...`
 - **ブランチ**: `develop` にプッシュ（`main` は保護されているのでPRのみ）
 - **バッチ禁止**: 複数チケットをまとめてコミットしない
+- **プッシュ後の確認**: ユーザーに確認してもらい、OKが出たら次のステップへ
+
+### mainへのマージ ⭐ 重要
+**プッシュ完了後、自動的にmainマージはせず、必ず確認を取る:**
+
+1. **プッシュ完了**: `develop` へコミット&プッシュ
+2. **確認を取る**: 「プッシュ完了しました。PR作成してmainにマージしてよいですか？（バージョンアップが必要な場合は先に対応します）」
+3. **ユーザー確認待ち**: OKが出るまで待機
+4. **バージョン対応**: 必要に応じてバージョン番号を更新→プッシュ→再確認
+5. **PR作成&マージ**: 確認OK後に `develop` → `main` へPR作成→マージ
+
+```bash
+# PR作成とマージ（ユーザー確認OK後のみ実行）
+gh pr create --base main --head develop --title "..." --body "..."
+gh pr merge <PR番号> --merge --delete-branch=false
+```
+
+**重要**: バージョンアップが必要なケースが多いので、プッシュ後は一度立ち止まって確認する
 
 ### 作業進行
 - **止まらない**: 確認待ちでも他のタスクを進める
@@ -65,10 +97,133 @@ feature/xxx, fix/xxx (作業ブランチ)
 
 ---
 
+## 🎨 UI/UXガイドライン
+
+### ナビゲーションパターン
+
+VanishBrowserでは、画面の表示方法に応じて統一されたナビゲーションパターンを使用します。
+
+#### 1️⃣ モーダル/シート表示（`.sheet`）
+
+**用途**: 独立した作業フロー、設定画面、一覧画面など
+
+**ボタン配置:**
+- **左上**: 「閉じる」ボタン（必須）
+- **右上**: アクションボタン（削除、追加など、任意）
+
+**実装例:**
+```swift
+.toolbar {
+    ToolbarItem(placement: .navigationBarLeading) {
+        Button("閉じる") { dismiss() }
+    }
+    ToolbarItem(placement: .navigationBarTrailing) {
+        Button("削除") { /* ... */ }
+    }
+}
+```
+
+**該当画面:**
+- SettingsView（設定）
+- CookieManagerView（Cookie管理）
+- BrowsingHistoryView（閲覧履歴）
+- BookmarkListView（ブックマーク一覧）
+- DownloadListView（ダウンロード一覧）
+- PasscodeSettingsView（パスコード設定）
+- DownloadDialogView（ダウンロードダイアログ）
+
+#### 2️⃣ NavigationLink遷移
+
+**用途**: 階層的な画面遷移、設定のサブ画面など
+
+**ボタン配置:**
+- **左上**: システム標準の「← 戻る」ボタン（自動表示）
+- **右上**: なし（または必要に応じてアクション）
+- **重要**: `.navigationBarBackButtonHidden(true)` は使用禁止
+
+**実装例:**
+```swift
+NavigationLink(destination: SubView()) {
+    Text("サブ画面へ")
+}
+// SubView側では特別な設定不要（戻るボタンは自動）
+```
+
+**該当画面:**
+- AutoDeleteSettingsView（自動削除設定）
+- LicenseView（ライセンス）
+
+#### 3️⃣ 全画面表示（`.fullScreenCover` / カスタムUI）
+
+**用途**: 動画プレーヤー、画像ビューアーなど没入型コンテンツ
+
+**ボタン配置:**
+- **左上**: 「×」ボタン（`xmark.circle.fill`）
+- **右上**: 共有ボタン（`square.and.arrow.up`）
+
+**実装例:**
+```swift
+HStack {
+    Button(action: { dismiss() }) {
+        Image(systemName: "xmark.circle.fill")
+            .font(.system(size: 32))
+            .foregroundColor(.white)
+    }
+    Spacer()
+    ShareLink(item: url) {
+        Image(systemName: "square.and.arrow.up")
+            .font(.system(size: 28))
+            .foregroundColor(.white)
+    }
+}
+```
+
+**該当画面:**
+- CustomVideoPlayerView（動画プレーヤー）
+- FileViewerView（画像ビューアー）
+
+---
+
+### セクション間の余白
+
+**List内のセクション:**
+- `.listStyle(.insetGrouped)` を使用
+- セクションヘッダーに `.padding(.top, 8)` を追加
+
+**実装例:**
+```swift
+List {
+    Section(header: Text("一般").padding(.top, 8)) {
+        // ...
+    }
+    Section(header: Text("セキュリティ").padding(.top, 8)) {
+        // ...
+    }
+}
+.listStyle(.insetGrouped)
+```
+
+---
+
+### 説明文の配置
+
+**原則**: 説明文はセクションのfooter（下部）に配置
+
+**理由**: ユーザーは項目を見てから説明を読むため、下部の方が自然
+
+**実装例:**
+```swift
+Section(header: Text("削除する内容"), footer: Text("選択した項目が自動的に削除されます")) {
+    Toggle("閲覧履歴", isOn: $deleteBrowsingHistory)
+    Toggle("ダウンロード", isOn: $deleteDownloads)
+}
+```
+
+---
+
 ## 📝 リリース後の改善課題
 
-### UI/UX改善
-- **動画プレーヤーの閉じるアニメーション**: 動画プレーヤーを閉じる際に一時的にFileViewerViewの透明画面が見える（0.1秒程度）。完全に黒画面にするか、アニメーション時間を調整することで改善可能。
+### 将来の改善案
 - [BUG-037](docs/04-improvements/BUG-037-video-swipe-navigation.md) - 動画スワイプナビゲーション（未実装）
 - [BUG-038](docs/04-improvements/BUG-038-video-toolbar-tap-bug.md) - 動画ツールバータップバグ（未実装）
 
@@ -76,7 +231,17 @@ feature/xxx, fix/xxx (作業ブランチ)
 
 ## ✅ 完了済み（抜粋）
 
-### 最新（2025-10-27）
+### 最新（2025-11-01）- v1.0.3準備完了
+- 自動削除設定画面のUI改善（footer位置、「閉じる」ボタン追加）
+- ホーム画面のクイックブックマークをYahoo! JAPANに変更
+- ビデオプレーヤーの再生ボタンを中央配置（3カラムレイアウト）
+- **動画プレーヤーの閉じるアニメーション改善**（根本解決）
+  - 動画ファイルはFileViewerViewを経由せず直接プレーヤーを表示
+  - 変な画面が表示される問題を完全に解決
+  - アニメーション遅延を削除してスムーズな遷移を実現
+- ブックマークのタイトルを1行に省略表示
+
+### 2025-10-27
 - 動画プレーヤーのUI改善（×ボタン左上統一、共有ボタン右上）
 - DL済み動画の共有機能実装（ShareSheet使用）
 - 動画プレーヤーを閉じたときにダウンロード一覧に戻るよう修正

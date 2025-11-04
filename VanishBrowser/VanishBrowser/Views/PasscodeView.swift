@@ -33,18 +33,10 @@ struct PasscodeView: View {
     var body: some View {
         VStack(spacing: 0) {
             // タイトル
-            VStack(spacing: 8) {
-                Text(title)
-                    .font(.title2)
-                    .fontWeight(.medium)
-
-                if let subtitle = subtitle {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.top, 10)
+            Text(title)
+                .font(.title2)
+                .fontWeight(.medium)
+                .padding(.top, 10)
 
             Spacer()
                 .frame(height: 20)
@@ -119,6 +111,12 @@ struct PasscodeView: View {
                     Color.clear
                         .frame(width: 70, height: 70)
                 }
+            }
+        }
+        .onChange(of: passcode) { oldValue, newValue in
+            // passcodeが外部から空にされた場合、enteredDigitsもクリア
+            if newValue.isEmpty && !enteredDigits.isEmpty {
+                enteredDigits.removeAll()
             }
         }
     }
