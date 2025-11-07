@@ -284,6 +284,23 @@
         }
       }
     },
+    "alert.delete.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Deletion"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除の確認"
+          }
+        }
+      }
+    },
     "alert.deleteAllCookies" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2563,6 +2580,108 @@
         }
       }
     },
+    "settings.autoDelete.after1Hour.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-delete 1 hour after closing the app. The counter resets if you open the app during the period"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後にアプリを閉じてから1時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます"
+          }
+        }
+      }
+    },
+    "settings.autoDelete.after3Days.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-delete 3 days after closing the app. The counter resets if you open the app during the period"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後にアプリを閉じてから3日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます"
+          }
+        }
+      }
+    },
+    "settings.autoDelete.after7Days.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-delete 7 days after closing the app. The counter resets if you open the app during the period"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後にアプリを閉じてから7日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます"
+          }
+        }
+      }
+    },
+    "settings.autoDelete.after24Hours.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-delete 24 hours after closing the app. The counter resets if you open the app during the period"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後にアプリを閉じてから24時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます"
+          }
+        }
+      }
+    },
+    "settings.autoDelete.after30Days.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-delete 30 days after closing the app. The counter resets if you open the app during the period"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後にアプリを閉じてから30日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます"
+          }
+        }
+      }
+    },
+    "settings.autoDelete.after90Days.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-delete 90 days after closing the app. The counter resets if you open the app during the period"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後にアプリを閉じてから90日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます"
+          }
+        }
+      }
+    },
     "settings.autoDelete.disabled" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2576,6 +2695,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動削除は無効です"
+          }
+        }
+      }
+    },
+    "settings.autoDelete.onAppClose.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-delete immediately after closing the app. The counter resets if you open the app during the period"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後にアプリを閉じてから直後に自動削除されます。期間内に一度でも開けばカウントがリセットされます"
           }
         }
       }
@@ -2780,6 +2916,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "閲覧履歴を削除"
+          }
+        }
+      }
+    },
+    "settings.deleteNow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Selected Content Now"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した内容を今すぐ削除"
           }
         }
       }
@@ -3571,6 +3724,7 @@
     },
     "タブ" : {
       "comment" : "A label that describes the functionality of the \"Tabs\" toggle.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -3826,6 +3980,7 @@
     },
     "ブックマーク" : {
       "comment" : "A toggle switch for managing bookmarks.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4160,6 +4315,7 @@
     },
     "最後にアプリを閉じてから1時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます" : {
       "comment" : "A footer text that describes the behavior of auto-deleting after 1 hour.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4172,6 +4328,7 @@
     },
     "最後にアプリを閉じてから3日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます" : {
       "comment" : "An explanation of the \"After 3 Days\" option in the auto-delete settings.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4184,6 +4341,7 @@
     },
     "最後にアプリを閉じてから7日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます" : {
       "comment" : "A footer text in the \"Auto Delete Settings\" view, describing the effect of choosing \"After 7 Days\" as the auto-delete option.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4196,6 +4354,7 @@
     },
     "最後にアプリを閉じてから24時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます" : {
       "comment" : "An explanation of the \"After 24 Hours\" option in the Auto Delete Settings view.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4207,6 +4366,7 @@
       }
     },
     "最後にアプリを閉じてから30日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4218,6 +4378,7 @@
     },
     "最後にアプリを閉じてから90日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます" : {
       "comment" : "A footer text that describes the 90-day auto-delete mode.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4230,6 +4391,7 @@
     },
     "最後にアプリを閉じてから直後に自動削除されます。期間内に一度でも開けばカウントがリセットされます" : {
       "comment" : "A description of the \"Last app close\" auto-delete mode.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4293,6 +4455,7 @@
     },
     "削除の確認" : {
       "comment" : "The title of an alert that appears when the user confirms deleting items.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4566,6 +4729,7 @@
     },
     "自動削除タイミング" : {
       "comment" : "A label describing the timing of automatic deletion.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
@@ -4637,6 +4801,7 @@
     },
     "選択した内容を今すぐ削除" : {
       "comment" : "A button label that appears in the \"手動削除\" section of the settings view, instructing the user to delete the selected items immediately.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "en" : {
