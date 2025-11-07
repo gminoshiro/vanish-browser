@@ -10,6 +10,8 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var autoDeleteService = AutoDeleteService.shared
+    @StateObject private var trialManager = TrialManager.shared
+    @StateObject private var purchaseManager = PurchaseManager.shared
     @AppStorage("searchEngine") private var searchEngine: String = SearchEngine.duckDuckGo.rawValue
     @AppStorage("authEnabled") private var authEnabled: Bool = false
     @AppStorage("useBiometric") private var useBiometric: Bool = true
@@ -19,6 +21,7 @@ struct SettingsView: View {
     @State private var availableStorage: Int64? = nil
     @State private var showPasscodeSettings = false
     @State private var showCookieManager = false
+    @State private var showPurchaseView = false
 
     var selectedSearchEngine: SearchEngine {
         SearchEngine(rawValue: searchEngine) ?? .google
@@ -27,6 +30,87 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
+                // Trial/Purchase Status
+                Section {
+                    if purchaseManager.isPurchased {
+                        // Purchased status
+                        HStack {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(.green.gradient)
+                                .font(.title2)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(NSLocalizedString("trial.purchased", comment: ""))
+                                    .font(.headline)
+                                Text(NSLocalizedString("purchase.lifetimeAccess", comment: ""))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                    } else if trialManager.isTrialActive {
+                        // Trial active
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "clock.badge.checkmark")
+                                    .foregroundStyle(.blue.gradient)
+                                    .font(.title2)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(trialManager.getTrialStatusMessage())
+                                        .font(.headline)
+                                    if let endDate = trialManager.trialEndDate {
+                                        Text("終了日: \(trialManager.getTrialEndDateString())")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                Spacer()
+                            }
+
+                            Button(action: {
+                                showPurchaseView = true
+                            }) {
+                                Text(NSLocalizedString("purchase.button", comment: ""))
+                                    .font(.subheadline.bold())
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding(.vertical, 8)
+                    } else if trialManager.isTrialExpired {
+                        // Trial expired
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.red.gradient)
+                                    .font(.title2)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(NSLocalizedString("trial.expired", comment: ""))
+                                        .font(.headline)
+                                        .foregroundColor(.red)
+                                    Text(NSLocalizedString("purchase.unlockFeatures", comment: ""))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+
+                            Button(action: {
+                                showPurchaseView = true
+                            }) {
+                                Text(NSLocalizedString("purchase.button", comment: ""))
+                                    .font(.subheadline.bold())
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+
                 // 一般設定
                 Section(header: Text("settings.general").padding(.top, 8)) {
                     Button(action: {
@@ -213,6 +297,12 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showCookieManager) {
                 CookieManagerView()
+            }
+            .sheet(isPresented: $showPurchaseView) {
+                PurchaseView()
+            }
+            .onAppear {
+                trialManager.updateTrialStatus()
             }
         }
     }

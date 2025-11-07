@@ -12,6 +12,7 @@ struct BrowserView: View {
     @StateObject private var tabManager = TabManager()
     @StateObject private var viewModel = BrowserViewModel()
     @StateObject private var networkMonitor = NetworkMonitor.shared
+    @StateObject private var trialManager = TrialManager.shared
     @State private var urlText: String = ""
     @State private var showBookmarks = false
     @State private var showDownloads = false
@@ -45,6 +46,8 @@ struct BrowserView: View {
     @State private var pendingBookmarkURL = ""
     @State private var selectedBookmarkFolder = ""
     @State private var showAutoDeleteSettings = false
+    @State private var showPurchaseView = false
+    @State private var showFeatureLockedAlert = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -197,9 +200,14 @@ struct BrowserView: View {
                             Button(action: {
                                 if let videoURL = viewModel.currentVideoURL,
                                    let fileName = viewModel.detectedMediaFileName {
-                                    pendingDownloadURL = videoURL
-                                    pendingDownloadFileName = fileName
-                                    showDownloadDialog = true
+                                    // Check trial status before showing download dialog
+                                    if trialManager.canAccessPremiumFeatures() {
+                                        pendingDownloadURL = videoURL
+                                        pendingDownloadFileName = fileName
+                                        showDownloadDialog = true
+                                    } else {
+                                        showPurchaseView = true
+                                    }
                                 }
                             }) {
                                 Image(systemName: "arrow.down.circle.fill")
@@ -278,9 +286,14 @@ struct BrowserView: View {
                         Button(action: {
                             if let videoURL = viewModel.currentVideoURL,
                                let fileName = viewModel.detectedMediaFileName {
-                                pendingDownloadURL = videoURL
-                                pendingDownloadFileName = fileName
-                                showDownloadDialog = true
+                                // Check trial status before showing download dialog
+                                if trialManager.canAccessPremiumFeatures() {
+                                    pendingDownloadURL = videoURL
+                                    pendingDownloadFileName = fileName
+                                    showDownloadDialog = true
+                                } else {
+                                    showPurchaseView = true
+                                }
                             }
                         }) {
                             Label("動画をダウンロード", systemImage: "arrow.down.circle.fill")
@@ -481,9 +494,14 @@ struct BrowserView: View {
         .confirmationDialog("", isPresented: $showMediaMenu, titleVisibility: .hidden) {
             Button(mediaMenuType == "video" ? "動画をダウンロード" : "画像をダウンロード") {
                 if let url = mediaMenuURL {
-                    pendingDownloadURL = url
-                    pendingDownloadFileName = mediaMenuFileName
-                    showDownloadDialog = true
+                    // Check trial status before showing download dialog
+                    if trialManager.canAccessPremiumFeatures() {
+                        pendingDownloadURL = url
+                        pendingDownloadFileName = mediaMenuFileName
+                        showDownloadDialog = true
+                    } else {
+                        showPurchaseView = true
+                    }
                 }
             }
             Button("URLをコピー") {
@@ -507,9 +525,14 @@ struct BrowserView: View {
         .alert("動画を検出しました", isPresented: $showVideoPrompt) {
             Button("ダウンロード") {
                 if let url = videoPromptURL {
-                    pendingDownloadURL = url
-                    pendingDownloadFileName = videoPromptFileName
-                    showDownloadDialog = true
+                    // Check trial status before showing download dialog
+                    if trialManager.canAccessPremiumFeatures() {
+                        pendingDownloadURL = url
+                        pendingDownloadFileName = videoPromptFileName
+                        showDownloadDialog = true
+                    } else {
+                        showPurchaseView = true
+                    }
                 }
             }
             Button("再生") {
@@ -572,10 +595,16 @@ struct BrowserView: View {
                    let url = userInfo["url"] as? URL,
                    let fileName = userInfo["fileName"] as? String {
                     print("📨 URL: \(url.absoluteString), fileName: \(fileName)")
-                    pendingDownloadURL = url
-                    pendingDownloadFileName = fileName
-                    showDownloadDialog = true
-                    print("📨 showDownloadDialog = true に設定")
+                    // Check trial status before showing download dialog
+                    if trialManager.canAccessPremiumFeatures() {
+                        pendingDownloadURL = url
+                        pendingDownloadFileName = fileName
+                        showDownloadDialog = true
+                        print("📨 showDownloadDialog = true に設定")
+                    } else {
+                        showPurchaseView = true
+                        print("🔒 Trial expired, showing purchase view")
+                    }
                 } else {
                     print("❌ userInfo が nil または不正")
                 }
@@ -701,6 +730,9 @@ struct BrowserView: View {
                     viewModel.loadURL(urlString)
                 }
             }
+        }
+        .sheet(isPresented: $showPurchaseView) {
+            PurchaseView()
         }
     }
 
