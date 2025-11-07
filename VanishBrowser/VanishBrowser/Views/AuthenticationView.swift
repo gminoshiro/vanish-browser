@@ -33,7 +33,7 @@ struct AuthenticationView: View {
                             }
 
                             PasscodeView(
-                                title: "パスコードを入力",
+                                title: NSLocalizedString("passcode.enter", comment: ""),
                                 subtitle: nil,
                                 passcode: $password,
                                 maxDigits: 4
@@ -42,7 +42,7 @@ struct AuthenticationView: View {
                             }
 
                             // パスコードを忘れた場合のリンク
-                            Button("パスコードを忘れた場合") {
+                            Button(NSLocalizedString("auth.forgotPasscode", comment: "")) {
                                 showResetAlert = true
                             }
                             .font(.footnote)
@@ -56,13 +56,13 @@ struct AuthenticationView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .alert("⚠️ すべてのデータを削除", isPresented: $showResetAlert) {
-            Button("キャンセル", role: .cancel) {}
-            Button("削除してリセット", role: .destructive) {
+        .alert(NSLocalizedString("auth.reset.title", comment: ""), isPresented: $showResetAlert) {
+            Button(NSLocalizedString("auth.reset.cancel", comment: ""), role: .cancel) {}
+            Button(NSLocalizedString("auth.reset.deleteAndReset", comment: ""), role: .destructive) {
                 resetPasscode()
             }
         } message: {
-            Text("パスコードをリセットするには、セキュリティのためすべてのデータを削除する必要があります。\n\n以下が完全に削除されます：\n• 閲覧履歴\n• ダウンロードファイル\n• ブックマーク\n• パスコード設定\n\nこの操作は取り消せません。本当によろしいですか？")
+            Text(NSLocalizedString("auth.reset.message", comment: ""))
         }
         .ignoresSafeArea(.keyboard)
         .onAppear {
@@ -79,7 +79,7 @@ struct AuthenticationView: View {
     }
 
     private func authenticate() {
-        let reason = "Vanish Browserを開くには認証が必要です"
+        let reason = NSLocalizedString("auth.biometric.reason", comment: "")
 
         BiometricAuthService.shared.authenticate(reason: reason) { success, error in
             if success {
@@ -88,10 +88,10 @@ struct AuthenticationView: View {
                 // 生体認証失敗時のメッセージ
                 if savedPassword.isEmpty {
                     // パスコード未設定の場合
-                    authError = "認証に失敗しました。設定でパスコードを設定してください。"
+                    authError = NSLocalizedString("auth.error.failed", comment: "")
                 } else {
                     // パスコード設定済みの場合はパスコード入力にフォールバック
-                    authError = "パスコードを入力してください"
+                    authError = NSLocalizedString("auth.error.enterPasscode", comment: "")
                 }
             }
         }
@@ -105,7 +105,7 @@ struct AuthenticationView: View {
             isAuthenticated = true
         } else {
             // 認証失敗時の処理
-            authError = "パスコードが違います"
+            authError = NSLocalizedString("passcode.error.incorrect", comment: "")
 
             // パスコードを即座にクリア
             DispatchQueue.main.async {

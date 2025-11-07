@@ -28,21 +28,21 @@ struct SettingsView: View {
         NavigationView {
             List {
                 // 一般設定
-                Section(header: Text("一般").padding(.top, 8)) {
+                Section(header: Text("settings.general").padding(.top, 8)) {
                     Button(action: {
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             UIApplication.shared.open(url)
                         }
                     }) {
                         HStack {
-                            Text("デフォルトブラウザに設定")
+                            Text("settings.setDefaultBrowser")
                             Spacer()
                             Image(systemName: "arrow.up.forward.app")
                                 .foregroundColor(.blue)
                         }
                     }
 
-                    Picker("検索エンジン", selection: $searchEngine) {
+                    Picker(LocalizedStringKey("settings.searchEngine"), selection: $searchEngine) {
                         ForEach(SearchEngine.allCases, id: \.rawValue) { engine in
                             Text(engine.rawValue).tag(engine.rawValue)
                         }
@@ -51,8 +51,8 @@ struct SettingsView: View {
                 }
 
                 // セキュリティ設定
-                Section(header: Text("セキュリティ").padding(.top, 8), footer: Text(authEnabled ? (useBiometric ? "生体認証が使えない時はパスコードで開けます" : "4桁の数字パスコードで認証します。") : "アプリ起動時の認証を有効にできます。")) {
-                    Toggle("認証を使用", isOn: $authEnabled)
+                Section(header: Text("settings.security").padding(.top, 8), footer: Text(authEnabled ? (useBiometric ? LocalizedStringKey("settings.security.biometric.footer") : LocalizedStringKey("settings.security.passcode.footer")) : LocalizedStringKey("settings.security.disabled.footer"))) {
+                    Toggle(LocalizedStringKey("settings.useAuthentication"), isOn: $authEnabled)
                         .onChange(of: authEnabled) { _, newValue in
                             if newValue && authPassword.isEmpty {
                                 // 認証ONにした時にパスコード未設定なら設定画面を表示
@@ -64,7 +64,7 @@ struct SettingsView: View {
                         // パスコード設定（生体認証使用時も必須）
                         if !authPassword.isEmpty {
                             HStack {
-                                Text("パスコードが設定されています")
+                                Text("settings.passcodeSet")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Spacer()
@@ -72,25 +72,25 @@ struct SettingsView: View {
                                     .foregroundColor(.green)
                             }
 
-                            Button("パスコードを変更") {
+                            Button(LocalizedStringKey("settings.changePasscode")) {
                                 showPasscodeSettings = true
                             }
 
-                            Button("パスコードをクリア") {
+                            Button(LocalizedStringKey("settings.clearPasscode")) {
                                 authPassword = ""
                                 // パスコードクリア時は生体認証もOFFにする
                                 useBiometric = false
                             }
                             .foregroundColor(.red)
                         } else {
-                            Button("パスコードを設定（必須）") {
+                            Button(LocalizedStringKey("settings.setPasscode")) {
                                 showPasscodeSettings = true
                             }
                             .foregroundColor(.orange)
                         }
 
                         // 生体認証トグル（パスコード設定済みの場合のみ有効）
-                        Toggle("生体認証を使用", isOn: $useBiometric)
+                        Toggle(LocalizedStringKey("settings.useBiometric"), isOn: $useBiometric)
                             .disabled(authPassword.isEmpty)
                             .onChange(of: useBiometric) { _, newValue in
                                 if newValue && authPassword.isEmpty {
@@ -101,10 +101,10 @@ struct SettingsView: View {
                     }
                 }
                 // ストレージ情報
-                Section(header: Text("ストレージ").padding(.top, 8)) {
+                Section(header: Text("settings.storage").padding(.top, 8)) {
                     NavigationLink(destination: DownloadListView()) {
                         HStack {
-                            Text("ダウンロード")
+                            Text("downloads.title")
                             Spacer()
                             Text("\(storageUsage.fileCount)件")
                                 .foregroundColor(.secondary)
@@ -112,7 +112,7 @@ struct SettingsView: View {
                     }
 
                     HStack {
-                        Text("アプリ使用容量")
+                        Text("settings.storage.appUsage")
                         Spacer()
                         Text(formatBytes(storageUsage.totalBytes))
                             .foregroundColor(.secondary)
@@ -120,7 +120,7 @@ struct SettingsView: View {
 
                     if let available = availableStorage {
                         HStack {
-                            Text("デバイス空き容量")
+                            Text("settings.storage.deviceAvailable")
                             Spacer()
                             Text(formatBytes(available))
                                 .foregroundColor(.secondary)
@@ -129,10 +129,10 @@ struct SettingsView: View {
                 }
 
                 // データ管理
-                Section(header: Text("データ管理").padding(.top, 8)) {
+                Section(header: Text("settings.dataManagement").padding(.top, 8)) {
                     NavigationLink(destination: AutoDeleteSettingsView()) {
                         HStack {
-                            Text("自動削除")
+                            Text("settings.autoDelete")
                             Spacer()
                             Text(autoDeleteService.autoDeleteMode.displayShortText)
                                 .foregroundColor(.secondary)
@@ -145,14 +145,14 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "trash")
                                 .foregroundColor(.red)
-                            Text("すべてのデータを今すぐ削除")
+                            Text("settings.deleteAllData.now")
                                 .foregroundColor(.red)
                         }
                     }
                 }
 
                 // その他
-                Section(header: Text("その他").padding(.top, 8)) {
+                Section(header: Text("settings.other").padding(.top, 8)) {
                     Button(action: {
                         // App IDは後でApp Store Connectで確認して設定
                         // 開発中は動作しない（App Store公開後に有効）
@@ -162,7 +162,7 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "star.fill")
                                 .foregroundColor(.yellow)
-                            Text("App Storeでレビューを書く")
+                            Text("settings.review")
                                 .foregroundColor(.primary)
                             Spacer()
                             Image(systemName: "arrow.up.right")
@@ -175,35 +175,35 @@ struct SettingsView: View {
                         showCookieManager = true
                     }) {
                         HStack {
-                            Label("Cookie管理", systemImage: "folder.badge.gearshape")
+                            Label(LocalizedStringKey("settings.cookieManager"), systemImage: "folder.badge.gearshape")
                             Spacer()
                         }
                         .foregroundColor(.primary)
                     }
 
                     NavigationLink(destination: LicenseView()) {
-                        Label("ライセンス", systemImage: "doc.text")
+                        Label(LocalizedStringKey("settings.licenses"), systemImage: "doc.text")
                     }
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("設定")
+            .navigationTitle(LocalizedStringKey("settings.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("閉じる") {
+                    Button(LocalizedStringKey("common.close")) {
                         dismiss()
                     }
                 }
             }
-            .alert("すべて削除", isPresented: $showDeleteConfirmation) {
-                Button("キャンセル", role: .cancel) {}
-                Button("削除", role: .destructive) {
+            .alert(LocalizedStringKey("settings.deleteConfirmTitle"), isPresented: $showDeleteConfirmation) {
+                Button(LocalizedStringKey("common.cancel"), role: .cancel) {}
+                Button(LocalizedStringKey("common.delete"), role: .destructive) {
                     autoDeleteService.deleteAllData()
                     loadStorageInfo() // 削除後に再読み込み
                 }
             } message: {
-                Text("閲覧履歴、ダウンロード、ブックマーク、タブをすべて削除します。この操作は取り消せません。")
+                Text("settings.deleteConfirmMessage")
             }
             .onAppear {
                 loadStorageInfo()

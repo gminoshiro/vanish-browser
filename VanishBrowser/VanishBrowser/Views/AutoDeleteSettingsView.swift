@@ -26,7 +26,7 @@ struct AutoDeleteSettingsView: View {
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("削除タイミング").padding(.top, 8), footer: footerText) {
+                Section(header: Text(NSLocalizedString("settings.deleteTiming", comment: "")).padding(.top, 8), footer: footerText) {
                     Picker("自動削除タイミング", selection: $autoDeleteService.autoDeleteMode) {
                         ForEach(AutoDeleteMode.allCases, id: \.self) { mode in
                             Text(mode.rawValue).tag(mode)
@@ -36,7 +36,7 @@ struct AutoDeleteSettingsView: View {
                     .disabled(!hasDeleteTarget)
                 }
 
-                Section(header: Text("削除する内容").padding(.top, 8)) {
+                Section(header: Text(NSLocalizedString("settings.deleteTargets", comment: "")).padding(.top, 8)) {
                     Toggle("閲覧履歴", isOn: $autoDeleteService.deleteBrowsingHistory)
                         .onChange(of: autoDeleteService.deleteBrowsingHistory) { _, _ in
                             checkDeleteTargets()
@@ -55,7 +55,7 @@ struct AutoDeleteSettingsView: View {
                         }
                 }
 
-                Section(header: Text("手動削除").padding(.top, 8)) {
+                Section(header: Text(NSLocalizedString("settings.manualDelete", comment: "")).padding(.top, 8)) {
                     Button(action: {
                         // 現在の設定を初期値として確認ダイアログに設定
                         confirmDeleteHistory = autoDeleteService.deleteBrowsingHistory
@@ -105,26 +105,26 @@ struct AutoDeleteSettingsView: View {
     private var footerText: Text {
         // 削除対象が未選択の場合
         if !hasDeleteTarget {
-            return Text("先に削除する内容を選択してください")
+            return Text(NSLocalizedString("alert.selectTargetsFirst", comment: ""))
         }
 
         switch autoDeleteService.autoDeleteMode {
         case .disabled:
-            return Text("自動削除は無効です")
+            return Text(NSLocalizedString("settings.autoDelete.disabled", comment: ""))
         case .onAppClose:
-            return Text("最後にアプリを閉じてから直後に自動削除されます。期間内に一度でも開けばカウントがリセットされます")
+            return Text(NSLocalizedString("最後にアプリを閉じてから直後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
         case .after1Hour:
-            return Text("最後にアプリを閉じてから1時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます")
+            return Text(NSLocalizedString("最後にアプリを閉じてから1時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
         case .after24Hours:
-            return Text("最後にアプリを閉じてから24時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます")
+            return Text(NSLocalizedString("最後にアプリを閉じてから24時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
         case .after3Days:
-            return Text("最後にアプリを閉じてから3日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます")
+            return Text(NSLocalizedString("最後にアプリを閉じてから3日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
         case .after7Days:
-            return Text("最後にアプリを閉じてから7日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます")
+            return Text(NSLocalizedString("最後にアプリを閉じてから7日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
         case .after30Days:
-            return Text("最後にアプリを閉じてから30日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます")
+            return Text(NSLocalizedString("最後にアプリを閉じてから30日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
         case .after90Days:
-            return Text("最後にアプリを閉じてから90日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます")
+            return Text(NSLocalizedString("最後にアプリを閉じてから90日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
         }
     }
 
@@ -141,23 +141,24 @@ struct AutoDeleteSettingsView: View {
         var items: [String] = []
 
         if confirmDeleteHistory {
-            items.append("閲覧履歴")
+            items.append(NSLocalizedString("browser.history", comment: ""))
         }
         if confirmDeleteDownloads {
-            items.append("ダウンロード")
+            items.append(NSLocalizedString("downloads.title", comment: ""))
         }
         if confirmDeleteBookmarks {
-            items.append("ブックマーク")
+            items.append(NSLocalizedString("bookmarks.title", comment: ""))
         }
         if confirmDeleteTabs {
-            items.append("タブ")
+            items.append(NSLocalizedString("tabs.title", comment: ""))
         }
 
         if items.isEmpty {
-            return "削除対象が選択されていません"
+            return NSLocalizedString("alert.delete.noTargets", comment: "")
         }
 
-        return items.joined(separator: "、") + "を削除します。この操作は取り消せません。"
+        let joined = items.joined(separator: ", ")
+        return String(format: "%@ %@", joined, NSLocalizedString("alert.delete.confirmation", comment: ""))
     }
 }
 

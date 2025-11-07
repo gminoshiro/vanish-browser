@@ -55,7 +55,7 @@ struct QualitySelectionView: View {
                     }
                 }
             }
-            .navigationTitle("ダウンロード設定")
+            .navigationTitle(NSLocalizedString("browser.download", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

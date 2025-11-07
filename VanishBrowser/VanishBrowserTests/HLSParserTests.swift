@@ -12,6 +12,8 @@ final class HLSParserTests: XCTestCase {
 
     // MARK: - 品質名テスト
 
+    /// テスト: HLS動画の品質表示名が正しく表示されるか（1080pの場合）
+    /// 期待結果: displayNameが"1080p"と表示される
     func testQualityDisplayName() throws {
         let quality = HLSQuality(
             resolution: "1080p",
@@ -24,6 +26,8 @@ final class HLSParserTests: XCTestCase {
         XCTAssertEqual(quality.displayName, "1080p")
     }
 
+    /// テスト: 低画質（360p）の品質表示名が正しく表示されるか
+    /// 期待結果: displayNameが"360p"と表示される
     func testQualityDisplayNameLow() throws {
         let quality = HLSQuality(
             resolution: "360p",
@@ -36,6 +40,8 @@ final class HLSParserTests: XCTestCase {
         XCTAssertEqual(quality.displayName, "360p")
     }
 
+    /// テスト: 中画質（720p）の品質表示名が正しく表示されるか
+    /// 期待結果: displayNameが"720p"と表示される
     func testQualityDisplayNameMedium() throws {
         let quality = HLSQuality(
             resolution: "720p",
@@ -50,6 +56,8 @@ final class HLSParserTests: XCTestCase {
 
     // MARK: - 解像度パーステスト
 
+    /// テスト: 解像度文字列から幅と高さが正しくパースされるか
+    /// 期待結果: width=1920, height=1080 が正しく取得できる
     func testResolutionParsing() throws {
         let quality = HLSQuality(
             resolution: "1080p",
@@ -63,6 +71,8 @@ final class HLSParserTests: XCTestCase {
         XCTAssertEqual(quality.height, 1080)
     }
 
+    /// テスト: 解像度が不明な場合はnilが返されるか
+    /// 期待結果: widthとheightがnilになる
     func testResolutionParsingNoResolution() throws {
         let quality = HLSQuality(
             resolution: "unknown",
@@ -76,6 +86,8 @@ final class HLSParserTests: XCTestCase {
         XCTAssertNil(quality.height)
     }
 
+    /// テスト: 無効な解像度文字列の場合はnilが返されるか
+    /// 期待結果: widthとheightがnilになる
     func testResolutionParsingInvalid() throws {
         let quality = HLSQuality(
             resolution: "invalid",
@@ -91,6 +103,8 @@ final class HLSParserTests: XCTestCase {
 
     // MARK: - 帯域幅計算テスト
 
+    /// テスト: 帯域幅（bps）からMbpsへの変換が正しく計算されるか
+    /// 期待結果: 5000000 bps = 5.0 Mbps, 500000 bps = 0.5 Mbps, 2000000 bps = 2.0 Mbps
     func testBandwidthCalculation() throws {
         // 5 Mbps
         let mbps5 = 5000000
@@ -107,6 +121,8 @@ final class HLSParserTests: XCTestCase {
 
     // MARK: - URL検証テスト
 
+    /// テスト: 正しいURL文字列からURLオブジェクトが生成されるか
+    /// 期待結果: URLオブジェクトが生成され、absoluteStringが元の文字列と一致する
     func testValidURL() throws {
         let urlString = "https://example.com/video.m3u8"
         let url = URL(string: urlString)
@@ -115,15 +131,21 @@ final class HLSParserTests: XCTestCase {
         XCTAssertEqual(url?.absoluteString, urlString)
     }
 
+    /// テスト: 無効なURL文字列の場合はnilが返されるか
+    /// 期待結果: URLオブジェクトがnilになる
+    /// 注意: スペースを含む文字列はURL(string:)によって自動的にパーセントエンコードされる場合がある
     func testInvalidURL() throws {
-        let urlString = "not a valid url"
+        // より確実に無効なURL文字列を使用（スキームなし、スペース含む、特殊文字）
+        let urlString = "ht!tp://invalid url with spaces"
         let url = URL(string: urlString)
 
-        XCTAssertNil(url)
+        XCTAssertNil(url, "無効なURL文字列ではnilが返されるべき")
     }
 
     // MARK: - 品質ソートテスト
 
+    /// テスト: HLS品質リストが帯域幅順に正しくソートされるか
+    /// 期待結果: 帯域幅の高い順（5Mbps > 2Mbps > 0.5Mbps）にソートされる
     func testQualitySorting() throws {
         let low = HLSQuality(
             resolution: "360p",
@@ -158,6 +180,8 @@ final class HLSParserTests: XCTestCase {
 
     // MARK: - M3U8形式判定テスト
 
+    /// テスト: URLがM3U8形式かどうか正しく判定されるか
+    /// 期待結果: .m3u8で終わるURLはtrue、そうでないURLはfalseを返す
     func testIsM3U8URL() throws {
         let m3u8URL = "https://example.com/video.m3u8"
         XCTAssertTrue(m3u8URL.hasSuffix(".m3u8"))

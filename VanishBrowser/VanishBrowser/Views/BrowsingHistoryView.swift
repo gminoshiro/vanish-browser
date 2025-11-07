@@ -99,7 +99,7 @@ struct BrowsingHistoryView: View {
                     historyManager.clearHistory()
                 }
             } message: {
-                Text("全ての閲覧履歴が削除されます。この操作は取り消せません。")
+                Text(NSLocalizedString("alert.deleteAllHistoryMessage", comment: ""))
             }
         }
     }
@@ -109,13 +109,13 @@ struct BrowsingHistoryView: View {
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: filteredHistory) { item -> String in
             if calendar.isDateInToday(item.visitedAt) {
-                return "今日"
+                return NSLocalizedString("history.today", comment: "")
             } else if calendar.isDateInYesterday(item.visitedAt) {
-                return "昨日"
+                return NSLocalizedString("history.yesterday", comment: "")
             } else if calendar.isDate(item.visitedAt, equalTo: Date(), toGranularity: .weekOfYear) {
-                return "今週"
+                return NSLocalizedString("history.thisWeek", comment: "")
             } else if calendar.isDate(item.visitedAt, equalTo: Date(), toGranularity: .month) {
-                return "今月"
+                return NSLocalizedString("history.thisMonth", comment: "")
             } else {
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy年M月"
@@ -124,7 +124,12 @@ struct BrowsingHistoryView: View {
         }
 
         // ソート順序を定義
-        let order = ["今日", "昨日", "今週", "今月"]
+        let order = [
+            NSLocalizedString("history.today", comment: ""),
+            NSLocalizedString("history.yesterday", comment: ""),
+            NSLocalizedString("history.thisWeek", comment: ""),
+            NSLocalizedString("history.thisMonth", comment: "")
+        ]
         return grouped.sorted { item1, item2 in
             if let index1 = order.firstIndex(of: item1.key),
                let index2 = order.firstIndex(of: item2.key) {

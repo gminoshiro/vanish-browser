@@ -171,11 +171,11 @@ struct NumberButton: View {
 
 #Preview {
     PasscodeView(
-        title: "パスコードを入力",
+        title: NSLocalizedString("passcode.enter", comment: ""),
         subtitle: nil,
         passcode: .constant(""),
         maxDigits: 4
     ) { passcode in
-        print("入力されたパスコード: \(passcode)")
+        print("\(NSLocalizedString("passcode.entered", comment: "")): \(passcode)")
     }
 }

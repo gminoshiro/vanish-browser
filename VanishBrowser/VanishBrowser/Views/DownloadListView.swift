@@ -11,9 +11,20 @@ import AVFoundation
 import Combine
 
 enum SortOption: String, CaseIterable {
-    case name = "名前"
-    case date = "日付"
-    case size = "サイズ"
+    case name = "name"
+    case date = "date"
+    case size = "size"
+
+    var displayText: String {
+        switch self {
+        case .name:
+            return NSLocalizedString("downloads.sort.name", comment: "")
+        case .date:
+            return NSLocalizedString("downloads.sort.date", comment: "")
+        case .size:
+            return NSLocalizedString("downloads.sort.size", comment: "")
+        }
+    }
 }
 
 struct DownloadListView: View {
@@ -81,7 +92,7 @@ struct DownloadListView: View {
                                 loadDownloads()
                             }) {
                                 HStack {
-                                    Text(option.rawValue)
+                                    Text(option.displayText)
                                     if sortOption == option {
                                         Image(systemName: "checkmark")
                                     }
@@ -91,7 +102,7 @@ struct DownloadListView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.up.arrow.down")
-                            Text(sortOption.rawValue)
+                            Text(sortOption.displayText)
                         }
                         .font(.caption)
                         .padding(8)
@@ -209,7 +220,7 @@ struct DownloadListView: View {
                 }
             }
             }
-            .navigationTitle(selectedFolderForView ?? "ダウンロード")
+            .navigationTitle(selectedFolderForView ?? NSLocalizedString("downloads.title", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -348,7 +359,7 @@ struct DownloadListView: View {
                     folderToDelete = ""
                 }
             } message: {
-                Text("フォルダ「\(folderToDelete)」とその中の全てのファイルを削除しますか？")
+                Text(String(format: NSLocalizedString("alert.deleteFolderMessage", comment: ""), folderToDelete))
             }
             .alert("フォルダ名を変更", isPresented: $showRenameFolder) {
                 TextField("新しいフォルダ名", text: $newFolderRename)
@@ -759,7 +770,7 @@ struct FolderPickerForMoveView: View {
                     HStack {
                         Image(systemName: "house.fill")
                             .foregroundColor(.blue)
-                        Text("ホーム")
+                        Text(NSLocalizedString("downloads.folder.home", comment: ""))
                         Spacer()
                     }
                 }

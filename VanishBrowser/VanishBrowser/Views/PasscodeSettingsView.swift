@@ -42,11 +42,11 @@ struct PasscodeSettingsView: View {
                             .font(.system(size: 80))
                             .foregroundColor(.green)
 
-                        Text("パスコードが設定されました")
+                        Text(NSLocalizedString("passcode.settings.success", comment: ""))
                             .font(.title2)
                             .fontWeight(.medium)
 
-                        Button("完了") {
+                        Button(NSLocalizedString("passcode.settings.done", comment: "")) {
                             dismiss()
                         }
                         .buttonStyle(.borderedProminent)
@@ -79,11 +79,11 @@ struct PasscodeSettingsView: View {
                     }
                 }
             }
-            .navigationTitle("パスコード設定")
+            .navigationTitle(NSLocalizedString("passcode.settings.title", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("閉じる") {
+                    Button(NSLocalizedString("passcode.settings.close", comment: "")) {
                         dismiss()
                     }
                 }
@@ -94,11 +94,11 @@ struct PasscodeSettingsView: View {
     private func titleForCurrentStep() -> String {
         switch currentStep {
         case .verifyCurrent:
-            return "現在のパスコードを入力"
+            return NSLocalizedString("passcode.enterCurrent", comment: "")
         case .enterNew:
-            return isChangingPasscode ? "新しいパスコードを入力" : "パスコードを入力"
+            return isChangingPasscode ? NSLocalizedString("passcode.enterNew", comment: "") : NSLocalizedString("passcode.enter", comment: "")
         case .confirmNew:
-            return "パスコードを再入力"
+            return NSLocalizedString("passcode.reenter", comment: "")
         case .success:
             return ""
         }
@@ -107,11 +107,11 @@ struct PasscodeSettingsView: View {
     private func subtitleForCurrentStep() -> String? {
         switch currentStep {
         case .verifyCurrent:
-            return "変更するには現在のパスコードが必要です"
+            return NSLocalizedString("passcode.currentRequired", comment: "")
         case .enterNew:
-            return "4桁の数字を入力してください"
+            return NSLocalizedString("passcode.enterFourDigits", comment: "")
         case .confirmNew:
-            return "確認のためもう一度入力してください"
+            return NSLocalizedString("passcode.confirmAgain", comment: "")
         case .success:
             return nil
         }
@@ -131,7 +131,7 @@ struct PasscodeSettingsView: View {
                 errorMessage = nil
             } else {
                 print("❌ 現在のパスコードが違います")
-                errorMessage = "パスコードが違います"
+                errorMessage = NSLocalizedString("passcode.error.incorrect", comment: "")
                 currentPasscode = ""
                 passcodeKey = UUID()
 
@@ -161,7 +161,7 @@ struct PasscodeSettingsView: View {
             } else {
                 // 一致しなかった場合、エラー表示してやり直し
                 print("❌ パスコード不一致")
-                errorMessage = "パスコードが一致しません"
+                errorMessage = NSLocalizedString("passcode.error.mismatch", comment: "")
                 firstPasscode = ""
                 currentPasscode = ""
                 passcodeKey = UUID()
