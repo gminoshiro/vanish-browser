@@ -16,6 +16,9 @@ struct VanishBrowserApp: App {
     init() {
         // アプリ起動カウントを増やす
         ReviewManager.shared.incrementLaunchCount()
+
+        // トライアル期間の初期化と状態更新
+        TrialManager.shared.updateTrialStatus()
     }
 
     var body: some Scene {
