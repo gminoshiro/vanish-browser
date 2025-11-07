@@ -27,9 +27,9 @@ struct AutoDeleteSettingsView: View {
         NavigationView {
             List {
                 Section(header: Text(NSLocalizedString("settings.deleteTiming", comment: "")).padding(.top, 8), footer: footerText) {
-                    Picker("自動削除タイミング", selection: $autoDeleteService.autoDeleteMode) {
+                    Picker(NSLocalizedString("settings.deleteTiming", comment: ""), selection: $autoDeleteService.autoDeleteMode) {
                         ForEach(AutoDeleteMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
+                            Text(mode.displayShortText).tag(mode)
                         }
                     }
                     .pickerStyle(.menu)
@@ -37,19 +37,19 @@ struct AutoDeleteSettingsView: View {
                 }
 
                 Section(header: Text(NSLocalizedString("settings.deleteTargets", comment: "")).padding(.top, 8)) {
-                    Toggle("閲覧履歴", isOn: $autoDeleteService.deleteBrowsingHistory)
+                    Toggle(NSLocalizedString("browser.history", comment: ""), isOn: $autoDeleteService.deleteBrowsingHistory)
                         .onChange(of: autoDeleteService.deleteBrowsingHistory) { _, _ in
                             checkDeleteTargets()
                         }
-                    Toggle("ダウンロード", isOn: $autoDeleteService.deleteDownloads)
+                    Toggle(NSLocalizedString("downloads.title", comment: ""), isOn: $autoDeleteService.deleteDownloads)
                         .onChange(of: autoDeleteService.deleteDownloads) { _, _ in
                             checkDeleteTargets()
                         }
-                    Toggle("ブックマーク", isOn: $autoDeleteService.deleteBookmarks)
+                    Toggle(NSLocalizedString("bookmarks.title", comment: ""), isOn: $autoDeleteService.deleteBookmarks)
                         .onChange(of: autoDeleteService.deleteBookmarks) { _, _ in
                             checkDeleteTargets()
                         }
-                    Toggle("タブ", isOn: $autoDeleteService.deleteTabs)
+                    Toggle(NSLocalizedString("tabs.title", comment: ""), isOn: $autoDeleteService.deleteTabs)
                         .onChange(of: autoDeleteService.deleteTabs) { _, _ in
                             checkDeleteTargets()
                         }
@@ -64,7 +64,7 @@ struct AutoDeleteSettingsView: View {
                         confirmDeleteTabs = autoDeleteService.deleteTabs
                         showDeleteConfirmation = true
                     }) {
-                        Label("選択した内容を今すぐ削除", systemImage: "trash.fill")
+                        Label(NSLocalizedString("settings.deleteNow", comment: ""), systemImage: "trash.fill")
                             .foregroundColor(.red)
                     }
                     .disabled(!autoDeleteService.deleteBrowsingHistory &&
@@ -74,18 +74,18 @@ struct AutoDeleteSettingsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("自動削除")
+            .navigationTitle(NSLocalizedString("settings.autoDelete", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("閉じる") {
+                    Button(NSLocalizedString("button.close", comment: "")) {
                         dismiss()
                     }
                 }
             }
-            .alert("削除の確認", isPresented: $showDeleteConfirmation) {
-                Button("キャンセル", role: .cancel) {}
-                Button("削除", role: .destructive) {
+            .alert(NSLocalizedString("alert.delete.title", comment: ""), isPresented: $showDeleteConfirmation) {
+                Button(NSLocalizedString("button.cancel", comment: ""), role: .cancel) {}
+                Button(NSLocalizedString("button.delete", comment: ""), role: .destructive) {
                     executeDelete()
                     dismiss()
                 }
@@ -112,19 +112,19 @@ struct AutoDeleteSettingsView: View {
         case .disabled:
             return Text(NSLocalizedString("settings.autoDelete.disabled", comment: ""))
         case .onAppClose:
-            return Text(NSLocalizedString("最後にアプリを閉じてから直後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
+            return Text(NSLocalizedString("settings.autoDelete.onAppClose.description", comment: ""))
         case .after1Hour:
-            return Text(NSLocalizedString("最後にアプリを閉じてから1時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
+            return Text(NSLocalizedString("settings.autoDelete.after1Hour.description", comment: ""))
         case .after24Hours:
-            return Text(NSLocalizedString("最後にアプリを閉じてから24時間後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
+            return Text(NSLocalizedString("settings.autoDelete.after24Hours.description", comment: ""))
         case .after3Days:
-            return Text(NSLocalizedString("最後にアプリを閉じてから3日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
+            return Text(NSLocalizedString("settings.autoDelete.after3Days.description", comment: ""))
         case .after7Days:
-            return Text(NSLocalizedString("最後にアプリを閉じてから7日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
+            return Text(NSLocalizedString("settings.autoDelete.after7Days.description", comment: ""))
         case .after30Days:
-            return Text(NSLocalizedString("最後にアプリを閉じてから30日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
+            return Text(NSLocalizedString("settings.autoDelete.after30Days.description", comment: ""))
         case .after90Days:
-            return Text(NSLocalizedString("最後にアプリを閉じてから90日後に自動削除されます。期間内に一度でも開けばカウントがリセットされます", comment: ""))
+            return Text(NSLocalizedString("settings.autoDelete.after90Days.description", comment: ""))
         }
     }
 
