@@ -11,14 +11,14 @@ import WebKit
 import UIKit
 
 enum AutoDeleteMode: String, CaseIterable {
-    case disabled = "無効"
-    case onAppClose = "アプリ終了時"
-    case after1Hour = "1時間後"
-    case after24Hours = "24時間後"
-    case after3Days = "3日後"
-    case after7Days = "7日後"
-    case after30Days = "30日後"
-    case after90Days = "90日後"
+    case disabled = "disabled"
+    case onAppClose = "onAppClose"
+    case after1Hour = "after1Hour"
+    case after24Hours = "after24Hours"
+    case after3Days = "after3Days"
+    case after7Days = "after7Days"
+    case after30Days = "after30Days"
+    case after90Days = "after90Days"
 
     var timeInterval: TimeInterval? {
         switch self {
@@ -42,21 +42,21 @@ enum AutoDeleteMode: String, CaseIterable {
     var displayShortText: String {
         switch self {
         case .disabled:
-            return "無効"
+            return NSLocalizedString("autodelete.mode.disabled", comment: "")
         case .onAppClose:
-            return "終了時"
+            return NSLocalizedString("autodelete.mode.onClose", comment: "")
         case .after1Hour:
-            return "1時間後"
+            return NSLocalizedString("autodelete.mode.1hour", comment: "")
         case .after24Hours:
-            return "24時間後"
+            return NSLocalizedString("autodelete.mode.24hours", comment: "")
         case .after3Days:
-            return "3日後"
+            return NSLocalizedString("autodelete.mode.3days", comment: "")
         case .after7Days:
-            return "7日後"
+            return NSLocalizedString("autodelete.mode.7days", comment: "")
         case .after30Days:
-            return "30日後"
+            return NSLocalizedString("autodelete.mode.30days", comment: "")
         case .after90Days:
-            return "90日後"
+            return NSLocalizedString("autodelete.mode.90days", comment: "")
         }
     }
 }

@@ -108,7 +108,7 @@ struct BookmarkListView: View {
                     }
                 }
             }
-            .navigationTitle(selectedFolder ?? "ブックマーク")
+            .navigationTitle(selectedFolder ?? NSLocalizedString("bookmarks.title", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

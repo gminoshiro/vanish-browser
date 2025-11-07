@@ -19,7 +19,7 @@ class Tab: Identifiable, ObservableObject, Equatable {
     let webView: WKWebView
     let createdAt: Date  // 自動削除用
 
-    init(id: UUID = UUID(), title: String = "新規タブ", url: String = "", snapshot: UIImage? = nil, isPrivate: Bool = false, createdAt: Date = Date()) {
+    init(id: UUID = UUID(), title: String = NSLocalizedString("tabs.new", comment: ""), url: String = "", snapshot: UIImage? = nil, isPrivate: Bool = false, createdAt: Date = Date()) {
         self.id = id
         self.title = title
         self.url = url

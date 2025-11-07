@@ -25,7 +25,7 @@ struct ActiveDownloadsView: View {
                 }
             }
         }
-        .navigationTitle("ダウンロード中")
+        .navigationTitle(NSLocalizedString("downloads.active", comment: ""))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -158,7 +158,7 @@ struct TabCardView: View {
                             .background(Circle().fill(Color.blue.opacity(0.7)))
                     }
 
-                    Text(tab.title.isEmpty ? "新規タブ" : tab.title)
+                    Text(tab.title.isEmpty ? NSLocalizedString("tabs.new", comment: "") : tab.title)
                         .font(.system(size: 14))
                         .foregroundColor(.primary)
                         .lineLimit(1)
@@ -203,7 +203,7 @@ struct TabCardView: View {
                                 .font(.system(size: 40))
                                 .foregroundColor(.gray)
 
-                            Text(tab.url.isEmpty ? "新規タブ" : tab.url)
+                            Text(tab.url.isEmpty ? NSLocalizedString("tabs.new", comment: "") : tab.url)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .lineLimit(2)

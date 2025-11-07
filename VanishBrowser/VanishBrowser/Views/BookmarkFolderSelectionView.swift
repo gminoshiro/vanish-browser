@@ -29,7 +29,7 @@ struct BookmarkFolderSelectionView: View {
                         HStack {
                             Image(systemName: "house.fill")
                                 .foregroundColor(.blue)
-                            Text("ホーム")
+                            Text(NSLocalizedString("bookmarks.folder.home", comment: ""))
                                 .foregroundColor(.primary)
                             Spacer()
                             if selectedFolder.isEmpty {
@@ -82,7 +82,7 @@ struct BookmarkFolderSelectionView: View {
                     .padding(.vertical, 4)
                 }
             }
-            .navigationTitle("ブックマークを保存")
+            .navigationTitle(NSLocalizedString("bookmarks.save", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

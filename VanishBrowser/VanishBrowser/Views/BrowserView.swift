@@ -974,7 +974,7 @@ struct WebView: UIViewRepresentable {
                     }
 
                     // 新規タブで開く
-                    let openInNewTab = UIAction(title: "新規タブで開く", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
+                    let openInNewTab = UIAction(title: NSLocalizedString("browser.tab.new", comment: ""), image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
                         DispatchQueue.main.async {
                             // createNewTabが自動的にcurrentTabIdを設定するため、
                             // onChangeハンドラで新しいタブのURLが自動ロードされる

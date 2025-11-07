@@ -60,7 +60,7 @@ struct CookieManagerView: View {
                             }) {
                                 HStack {
                                     Spacer()
-                                    Text("すべてのCookieを削除")
+                                    Text(NSLocalizedString("alert.deleteAllCookies", comment: ""))
                                     Spacer()
                                 }
                             }
@@ -88,7 +88,7 @@ struct CookieManagerView: View {
                     deleteAllCookies()
                 }
             } message: {
-                Text("すべてのCookieを削除してもよろしいですか？")
+                Text(NSLocalizedString("alert.deleteAllCookiesMessage", comment: ""))
             }
             .onAppear {
                 loadCookies()

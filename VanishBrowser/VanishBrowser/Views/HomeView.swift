@@ -12,14 +12,30 @@ struct HomeView: View {
     let onBookmarkTap: (String) -> Void
     @State private var searchText = ""
 
-    // よく使うブックマーク（後で動的に取得可能）
-    let quickBookmarks: [QuickBookmark] = [
-        QuickBookmark(title: "Search", icon: "magnifyingglass", url: "https://www.google.com", color: .primary),
-        QuickBookmark(title: "YouTube", icon: "play.rectangle.fill", url: "https://youtube.com", color: .primary),
-        QuickBookmark(title: "Maps", icon: "map.fill", url: "https://maps.google.com", color: .primary),
-        QuickBookmark(title: "Weather", icon: "cloud.sun.fill", url: "https://weather.yahoo.co.jp/", color: .primary),
-        QuickBookmark(title: "News", icon: "newspaper.fill", url: "https://news.yahoo.co.jp/", color: .primary),
-    ]
+    // よく使うブックマーク（言語に応じて切り替え）
+    var quickBookmarks: [QuickBookmark] {
+        let isJapanese = Locale.current.language.languageCode?.identifier == "ja"
+
+        if isJapanese {
+            return [
+                QuickBookmark(title: "Search", icon: "magnifyingglass.circle.fill", url: "https://www.google.com", color: .blue),
+                QuickBookmark(title: "YouTube", icon: "play.circle.fill", url: "https://youtube.com", color: .red),
+                QuickBookmark(title: "X", icon: "person.2.fill", url: "https://x.com", color: .primary),
+                QuickBookmark(title: "Maps", icon: "map.circle.fill", url: "https://maps.google.com", color: .green),
+                QuickBookmark(title: "Weather", icon: "cloud.sun.fill", url: "https://weather.yahoo.co.jp/", color: .orange),
+                QuickBookmark(title: "News", icon: "doc.text.fill", url: "https://news.yahoo.co.jp/", color: .purple),
+            ]
+        } else {
+            return [
+                QuickBookmark(title: "Search", icon: "magnifyingglass.circle.fill", url: "https://www.google.com", color: .blue),
+                QuickBookmark(title: "YouTube", icon: "play.circle.fill", url: "https://youtube.com", color: .red),
+                QuickBookmark(title: "X", icon: "person.2.fill", url: "https://x.com", color: .primary),
+                QuickBookmark(title: "Maps", icon: "map.circle.fill", url: "https://maps.google.com", color: .green),
+                QuickBookmark(title: "Weather", icon: "cloud.sun.fill", url: "https://weather.com", color: .orange),
+                QuickBookmark(title: "News", icon: "doc.text.fill", url: "https://www.bbc.com/news", color: .purple),
+            ]
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -64,7 +80,6 @@ struct HomeView: View {
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible()),
-                    GridItem(.flexible()),
                     GridItem(.flexible())
                 ], spacing: 20) {
                     ForEach(quickBookmarks) { bookmark in
@@ -102,8 +117,9 @@ struct QuickBookmarkButton: View {
                     .frame(width: 60, height: 60)
 
                 Image(systemName: bookmark.icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(.white.opacity(0.7))
+                    .font(.system(size: 28))
+                    .foregroundColor(bookmark.color)
+                    .symbolRenderingMode(.hierarchical)
             }
 
             Text(bookmark.title)

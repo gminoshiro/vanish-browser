@@ -64,7 +64,7 @@ struct DownloadDialogView: View {
                                 .foregroundColor(.blue)
                                 .font(.system(size: 24))
 
-                            Text(selectedFolder.isEmpty ? "ホーム" : selectedFolder)
+                            Text(selectedFolder.isEmpty ? NSLocalizedString("downloads.folder.home", comment: "") : selectedFolder)
                                 .foregroundColor(.primary)
 
                             Spacer()
@@ -103,7 +103,7 @@ struct DownloadDialogView: View {
                 .disabled(isLoadingQualities)
                 .padding()
             }
-            .navigationTitle("ファイルをダウンロード")
+            .navigationTitle(NSLocalizedString("browser.download", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -182,7 +182,7 @@ struct FolderPickerView: View {
                     HStack {
                         Image(systemName: "house.fill")
                             .foregroundColor(.blue)
-                        Text("ホーム")
+                        Text(NSLocalizedString("downloads.folder.home", comment: ""))
                         Spacer()
                         if selectedFolder.isEmpty {
                             Image(systemName: "checkmark")
