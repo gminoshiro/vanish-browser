@@ -213,6 +213,54 @@ EOF
 
 ---
 
+### Step 7: シミュレーター言語設定（多言語対応アプリの場合）
+
+アプリが日本語・英語対応している場合、テスト時に言語を切り替える必要があります。
+
+#### 方法1: Xcodeスキーム設定（推奨）
+
+1. Xcodeツールバーで **VanishBrowser > iPhone 17** の横にある**スキーム名**をクリック
+2. **Edit Scheme...** を選択
+3. 左側から **Run** を選択
+4. **Options** タブをクリック
+5. **App Language** を選択:
+   - **Japanese（日本語）**: 日本語でテスト
+   - **English**: 英語でテスト
+   - **System Language**: システム言語に従う（デフォルト）
+6. **Close** をクリック
+7. `Cmd + R` でビルド・実行
+
+**メリット**: ビルドのたびに自動的に指定言語で起動
+
+#### 方法2: シミュレーター設定（手動）
+
+1. シミュレーターで **Settings** アプリを開く
+2. **General** → **Language & Region**
+3. **iPhone Language** をタップ
+4. 言語を選択（日本語 / English）
+5. **Change to 日本語** / **Change to English** をタップ
+6. シミュレーターが再起動される
+
+#### 方法3: コマンドライン
+
+```bash
+# シミュレーターのデバイスIDを確認
+xcrun simctl list devices
+
+# 日本語に変更
+DEVICE_ID="<your-device-id>"
+xcrun simctl spawn $DEVICE_ID defaults write "Apple Global Domain" AppleLanguages -array ja
+xcrun simctl shutdown $DEVICE_ID && xcrun simctl boot $DEVICE_ID
+
+# 英語に変更
+xcrun simctl spawn $DEVICE_ID defaults write "Apple Global Domain" AppleLanguages -array en
+xcrun simctl shutdown $DEVICE_ID && xcrun simctl boot $DEVICE_ID
+```
+
+**推奨**: 方法1（Xcodeスキーム設定）が最も効率的
+
+---
+
 ## 🔐 Apple Developer Program登録（リリース時）
 
 ### 費用
