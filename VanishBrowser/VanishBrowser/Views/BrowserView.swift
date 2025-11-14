@@ -12,7 +12,6 @@ struct BrowserView: View {
     @StateObject private var tabManager = TabManager()
     @StateObject private var viewModel = BrowserViewModel()
     @StateObject private var networkMonitor = NetworkMonitor.shared
-    @StateObject private var trialManager = TrialManager.shared
     @State private var urlText: String = ""
     @State private var showBookmarks = false
     @State private var showDownloads = false
@@ -46,8 +45,6 @@ struct BrowserView: View {
     @State private var pendingBookmarkURL = ""
     @State private var selectedBookmarkFolder = ""
     @State private var showAutoDeleteSettings = false
-    @State private var showPurchaseView = false
-    @State private var showFeatureLockedAlert = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -192,44 +189,6 @@ struct BrowserView: View {
                         .background(Color.black.opacity(0.1))
                 }
 
-                // 動画再生中のDLボタン（オーバーレイ） - フルスクリーン対策で常に最前面
-                if viewModel.hasVideo {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Button(action: {
-                                if let videoURL = viewModel.currentVideoURL,
-                                   let fileName = viewModel.detectedMediaFileName {
-                                    // Check trial status before showing download dialog
-                                    if trialManager.canAccessPremiumFeatures() {
-                                        pendingDownloadURL = videoURL
-                                        pendingDownloadFileName = fileName
-                                        showDownloadDialog = true
-                                    } else {
-                                        showPurchaseView = true
-                                    }
-                                }
-                            }) {
-                                Image(systemName: "arrow.down.circle.fill")
-                                    .font(.system(size: 32))
-                                    .foregroundColor(.white)
-                                    .background(
-                                        Circle()
-                                            .fill(Color.black.opacity(0.6))
-                                            .frame(width: 50, height: 50)
-                                    )
-                            }
-                            .padding(.leading, 20)
-                            .padding(.bottom, 100)
-                            .zIndex(999) // 最前面に表示
-
-                            Spacer()
-                        }
-                    }
-                    .allowsHitTesting(true)
-                    .zIndex(999)
-                }
-
                 if viewModel.isDownloading {
                     VStack {
                         Spacer()
@@ -281,26 +240,6 @@ struct BrowserView: View {
 
                     // その他メニュー
                     Menu {
-                    // 動画ダウンロード（動画検出時のみ）
-                    if viewModel.hasVideo {
-                        Button(action: {
-                            if let videoURL = viewModel.currentVideoURL,
-                               let fileName = viewModel.detectedMediaFileName {
-                                // Check trial status before showing download dialog
-                                if trialManager.canAccessPremiumFeatures() {
-                                    pendingDownloadURL = videoURL
-                                    pendingDownloadFileName = fileName
-                                    showDownloadDialog = true
-                                } else {
-                                    showPurchaseView = true
-                                }
-                            }
-                        }) {
-                            Label("動画をダウンロード", systemImage: "arrow.down.circle.fill")
-                        }
-                        Divider()
-                    }
-
                     Button(action: {
                         pendingBookmarkTitle = viewModel.webView.title ?? ""
                         pendingBookmarkURL = viewModel.currentURL
@@ -494,14 +433,9 @@ struct BrowserView: View {
         .confirmationDialog("", isPresented: $showMediaMenu, titleVisibility: .hidden) {
             Button(mediaMenuType == "video" ? "動画をダウンロード" : "画像をダウンロード") {
                 if let url = mediaMenuURL {
-                    // Check trial status before showing download dialog
-                    if trialManager.canAccessPremiumFeatures() {
-                        pendingDownloadURL = url
-                        pendingDownloadFileName = mediaMenuFileName
-                        showDownloadDialog = true
-                    } else {
-                        showPurchaseView = true
-                    }
+                    pendingDownloadURL = url
+                    pendingDownloadFileName = mediaMenuFileName
+                    showDownloadDialog = true
                 }
             }
             Button("URLをコピー") {
@@ -525,14 +459,9 @@ struct BrowserView: View {
         .alert("動画を検出しました", isPresented: $showVideoPrompt) {
             Button("ダウンロード") {
                 if let url = videoPromptURL {
-                    // Check trial status before showing download dialog
-                    if trialManager.canAccessPremiumFeatures() {
-                        pendingDownloadURL = url
-                        pendingDownloadFileName = videoPromptFileName
-                        showDownloadDialog = true
-                    } else {
-                        showPurchaseView = true
-                    }
+                    pendingDownloadURL = url
+                    pendingDownloadFileName = videoPromptFileName
+                    showDownloadDialog = true
                 }
             }
             Button("再生") {
@@ -595,16 +524,10 @@ struct BrowserView: View {
                    let url = userInfo["url"] as? URL,
                    let fileName = userInfo["fileName"] as? String {
                     print("📨 URL: \(url.absoluteString), fileName: \(fileName)")
-                    // Check trial status before showing download dialog
-                    if trialManager.canAccessPremiumFeatures() {
-                        pendingDownloadURL = url
-                        pendingDownloadFileName = fileName
-                        showDownloadDialog = true
-                        print("📨 showDownloadDialog = true に設定")
-                    } else {
-                        showPurchaseView = true
-                        print("🔒 Trial expired, showing purchase view")
-                    }
+                    pendingDownloadURL = url
+                    pendingDownloadFileName = fileName
+                    showDownloadDialog = true
+                    print("📨 showDownloadDialog = true に設定")
                 } else {
                     print("❌ userInfo が nil または不正")
                 }
@@ -731,9 +654,6 @@ struct BrowserView: View {
                 }
             }
         }
-        .sheet(isPresented: $showPurchaseView) {
-            PurchaseView()
-        }
     }
 
 
@@ -842,55 +762,6 @@ struct BrowserView: View {
         // ここでは完了通知を表示しない
         print("✅ HLSダウンロードをDownloadManagerに登録: \(fileName)")
     }
-
-    // 以前のhandleHLSDownload実装（参考用にコメントアウト）
-    /*
-    private func handleHLSDownloadOld(quality: HLSQuality, format: DownloadFormat, fileName: String, folder: String) {
-        Task {
-            do {
-                if format == .mp4 {
-                    // MP4形式でダウンロード（TSセグメント結合方式）
-                    let mp4File = try await hlsDownloader.downloadHLS(
-                        quality: quality,
-                        fileName: fileName,
-                        folder: folder
-                    )
-                    print("✅ HLS→MP4変換完了: \(mp4File.path)")
-
-                    // ファイルサイズを取得
-                    let fileSize = (try? FileManager.default.attributesOfItem(atPath: mp4File.path)[.size] as? Int64) ?? 0
-
-                    // DownloadServiceに登録
-                    DownloadService.shared.saveDownloadedFile(
-                        fileName: mp4File.lastPathComponent,
-                        filePath: mp4File.path,
-                        fileSize: fileSize,
-                        mimeType: "video/mp4",
-                        folder: folder
-                    )
-
-                    await MainActor.run {
-                        downloadedFileName = mp4File.lastPathComponent
-                        downloadedFileSize = fileSize
-                        showDownloadCompleted = true
-                    }
-                } else {
-                    // m3u8形式でダウンロード
-                    let m3u8File = try await hlsDownloader.downloadHLS(
-                        quality: quality,
-                        fileName: fileName,
-                        folder: folder
-                    )
-                    print("✅ HLSダウンロード完了: \(m3u8File.path)")
-
-                    // (コメントアウト)
-                }
-            } catch {
-                print("❌ HLSダウンロードエラー: \(error)")
-            }
-        }
-    }
-    */
 
     private func calculateFolderSize(at url: URL) throws -> Int64 {
         let fileManager = FileManager.default

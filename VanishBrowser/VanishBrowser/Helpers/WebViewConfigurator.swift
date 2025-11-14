@@ -20,10 +20,6 @@ class WebViewConfigurator {
         configuration.allowsPictureInPictureMediaPlayback = false
         configuration.mediaTypesRequiringUserActionForPlayback = .all
 
-        // カスタムURLスキームハンドラを登録（動画インターセプト用）
-        let videoHandler = VideoURLSchemeHandler()
-        configuration.setURLSchemeHandler(videoHandler, forURLScheme: "vanish-video")
-
         // JavaScriptで動画検出（再生中の動画URLを通知）
         let mediaDetectionScript = WKUserScript(
             source: """
