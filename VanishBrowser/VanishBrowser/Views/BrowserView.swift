@@ -189,39 +189,6 @@ struct BrowserView: View {
                         .background(Color.black.opacity(0.1))
                 }
 
-                // 動画再生中のDLボタン（オーバーレイ） - フルスクリーン対策で常に最前面
-                if viewModel.hasVideo {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Button(action: {
-                                if let videoURL = viewModel.currentVideoURL,
-                                   let fileName = viewModel.detectedMediaFileName {
-                                    pendingDownloadURL = videoURL
-                                    pendingDownloadFileName = fileName
-                                    showDownloadDialog = true
-                                }
-                            }) {
-                                Image(systemName: "arrow.down.circle.fill")
-                                    .font(.system(size: 32))
-                                    .foregroundColor(.white)
-                                    .background(
-                                        Circle()
-                                            .fill(Color.black.opacity(0.6))
-                                            .frame(width: 50, height: 50)
-                                    )
-                            }
-                            .padding(.leading, 20)
-                            .padding(.bottom, 100)
-                            .zIndex(999) // 最前面に表示
-
-                            Spacer()
-                        }
-                    }
-                    .allowsHitTesting(true)
-                    .zIndex(999)
-                }
-
                 if viewModel.isDownloading {
                     VStack {
                         Spacer()
@@ -273,21 +240,6 @@ struct BrowserView: View {
 
                     // その他メニュー
                     Menu {
-                    // 動画ダウンロード（動画検出時のみ）
-                    if viewModel.hasVideo {
-                        Button(action: {
-                            if let videoURL = viewModel.currentVideoURL,
-                               let fileName = viewModel.detectedMediaFileName {
-                                pendingDownloadURL = videoURL
-                                pendingDownloadFileName = fileName
-                                showDownloadDialog = true
-                            }
-                        }) {
-                            Label("動画をダウンロード", systemImage: "arrow.down.circle.fill")
-                        }
-                        Divider()
-                    }
-
                     Button(action: {
                         pendingBookmarkTitle = viewModel.webView.title ?? ""
                         pendingBookmarkURL = viewModel.currentURL
@@ -810,55 +762,6 @@ struct BrowserView: View {
         // ここでは完了通知を表示しない
         print("✅ HLSダウンロードをDownloadManagerに登録: \(fileName)")
     }
-
-    // 以前のhandleHLSDownload実装（参考用にコメントアウト）
-    /*
-    private func handleHLSDownloadOld(quality: HLSQuality, format: DownloadFormat, fileName: String, folder: String) {
-        Task {
-            do {
-                if format == .mp4 {
-                    // MP4形式でダウンロード（TSセグメント結合方式）
-                    let mp4File = try await hlsDownloader.downloadHLS(
-                        quality: quality,
-                        fileName: fileName,
-                        folder: folder
-                    )
-                    print("✅ HLS→MP4変換完了: \(mp4File.path)")
-
-                    // ファイルサイズを取得
-                    let fileSize = (try? FileManager.default.attributesOfItem(atPath: mp4File.path)[.size] as? Int64) ?? 0
-
-                    // DownloadServiceに登録
-                    DownloadService.shared.saveDownloadedFile(
-                        fileName: mp4File.lastPathComponent,
-                        filePath: mp4File.path,
-                        fileSize: fileSize,
-                        mimeType: "video/mp4",
-                        folder: folder
-                    )
-
-                    await MainActor.run {
-                        downloadedFileName = mp4File.lastPathComponent
-                        downloadedFileSize = fileSize
-                        showDownloadCompleted = true
-                    }
-                } else {
-                    // m3u8形式でダウンロード
-                    let m3u8File = try await hlsDownloader.downloadHLS(
-                        quality: quality,
-                        fileName: fileName,
-                        folder: folder
-                    )
-                    print("✅ HLSダウンロード完了: \(m3u8File.path)")
-
-                    // (コメントアウト)
-                }
-            } catch {
-                print("❌ HLSダウンロードエラー: \(error)")
-            }
-        }
-    }
-    */
 
     private func calculateFolderSize(at url: URL) throws -> Int64 {
         let fileManager = FileManager.default

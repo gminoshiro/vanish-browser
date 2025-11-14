@@ -54,11 +54,8 @@ class BrowserViewModel: NSObject, ObservableObject {
     @Published var isDownloading = false
     @Published var detectedMediaURL: URL?
     @Published var detectedMediaFileName: String?
-    @Published var hasVideo = false  // 動画が検出されたか
-    @Published var currentVideoURL: URL?  // 現在の動画URL
     @Published var loadError: Error?  // ページ読み込みエラー
     @Published var showToolbars = true  // ツールバー表示状態
-    private var videoStoppedTimer: Timer?  // videoStopped遅延用タイマー
     private var lastScrollOffset: CGFloat = 0  // 前回のスクロール位置
     @Published var showErrorAlert = false  // エラーアラート表示フラグ
     @Published var loadingProgress: Double = 0.0  // ページ読み込み進捗（0.0〜1.0）
@@ -84,10 +81,6 @@ class BrowserViewModel: NSObject, ObservableObject {
         configuration.allowsInlineMediaPlayback = true // インライン再生を有効化
         configuration.allowsPictureInPictureMediaPlayback = false // PIPを無効化
         configuration.mediaTypesRequiringUserActionForPlayback = .all // 自動再生を防止
-
-        // カスタムURLスキームハンドラを登録（動画インターセプト用）
-        let videoHandler = VideoURLSchemeHandler()
-        configuration.setURLSchemeHandler(videoHandler, forURLScheme: "vanish-video")
 
         // JavaScriptで動画検出（再生中の動画URLを通知）
         let mediaDetectionScript = WKUserScript(
@@ -398,9 +391,6 @@ class BrowserViewModel: NSObject, ObservableObject {
         webView.navigationDelegate = self
         webView.uiDelegate = self
 
-        // ビデオインターセプターを初期化
-        _ = VideoInterceptor.shared
-
         // WebViewの状態を監視
         webView.publisher(for: \.canGoBack)
             .assign(to: &$canGoBack)
@@ -430,9 +420,6 @@ class BrowserViewModel: NSObject, ObservableObject {
     }
 
     deinit {
-        // タイマーを停止
-        videoStoppedTimer?.invalidate()
-
         // Message handlerを削除してメモリリークを防ぐ
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDownload")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "imageLongPress")
@@ -447,8 +434,6 @@ class BrowserViewModel: NSObject, ObservableObject {
     func switchWebView(to newWebView: WKWebView) {
         // 古いWebViewのオブザーバーとハンドラーを解除
         progressObserver?.invalidate()
-        videoStoppedTimer?.invalidate()
-        videoStoppedTimer = nil
 
         // 古いWebViewのメッセージハンドラーを削除
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDownload")
@@ -880,31 +865,8 @@ extension BrowserViewModel: WKScriptMessageHandler {
 
             DispatchQueue.main.async {
                 // URLが変わった時だけログ出力
-                if self.currentVideoURL?.absoluteString != urlString {
-                    print("🎬 動画検出: \(fileName) - URL: \(urlString)")
-                }
-
-                // videoStoppedタイマーをキャンセル（動画が再検出された）
-                self.videoStoppedTimer?.invalidate()
-                self.videoStoppedTimer = nil
-
-                self.hasVideo = true
-                self.currentVideoURL = url
+                print("🎬 動画検出: \(fileName) - URL: \(urlString)")
                 self.detectedMediaFileName = fileName
-            }
-        } else if message.name == "videoStopped" {
-            // videoStoppedは頻繁に発火するので、2秒遅延させて安定化
-            DispatchQueue.main.async {
-                // 既存のタイマーをキャンセル
-                self.videoStoppedTimer?.invalidate()
-
-                // 2秒後にhasVideoをfalseにする
-                self.videoStoppedTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-                    print("⏸️ 動画停止（2秒後）")
-                    self?.hasVideo = false
-                    self?.currentVideoURL = nil
-                    self?.videoStoppedTimer = nil
-                }
             }
         } else if message.name == "videoClicked",
            let dict = message.body as? [String: String],
