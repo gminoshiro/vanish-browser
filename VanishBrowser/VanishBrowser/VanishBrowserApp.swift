@@ -123,16 +123,23 @@ struct VanishBrowserApp: App {
 
 struct RootView: View {
     @Binding var importedFileURL: URL?
+    @StateObject private var trialManager = TrialManager.shared
+    @StateObject private var purchaseManager = PurchaseManager.shared
     @State private var isAuthenticated = false
     @State private var showWarning = false
     @State private var daysLeft = 0
     @State private var showDeleteAlert = false
     @State private var showImportSuccess = false
+    @State private var showTrialWelcome = false
 
     var body: some View {
         Group {
             if isAuthenticated || !AppSettingsService.shared.isAuthEnabled() {
                 ContentView()
+                    .fullScreenCover(isPresented: .constant(trialManager.shouldShowPaywall())) {
+                        PurchaseView()
+                            .interactiveDismissDisabled(true)
+                    }
                     .alert("データ削除警告", isPresented: $showWarning) {
                         Button("OK") {}
                     } message: {
@@ -153,6 +160,19 @@ struct RootView: View {
                     .onChange(of: importedFileURL) { _, newValue in
                         if newValue != nil {
                             showImportSuccess = true
+                        }
+                    }
+                    .alert("7日間無料でお試し", isPresented: $showTrialWelcome) {
+                        Button("始める") {
+                            trialManager.markTrialWelcomeAsShown()
+                        }
+                    } message: {
+                        Text("すべての機能を7日間、無料でお使いいただけます。\n\n期間終了後、¥300の買い切り購入で引き続きご利用いただけます。月額課金はありません。")
+                    }
+                    .onAppear {
+                        // Check if we should show trial welcome alert
+                        if trialManager.shouldShowTrialWelcome() {
+                            showTrialWelcome = true
                         }
                     }
             } else {

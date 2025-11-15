@@ -22,6 +22,7 @@ class TrialManager: ObservableObject {
 
     private let firstLaunchDateKey = "firstLaunchDate"
     private let hasCompletedOnboardingKey = "hasCompletedOnboarding"
+    private let hasShownTrialWelcomeKey = "hasShownTrialWelcome"
 
     private init() {
         setupTrialPeriod()
@@ -137,12 +138,29 @@ class TrialManager: ObservableObject {
         return formatter.string(from: endDate)
     }
 
+    // MARK: - Welcome Alert
+
+    func shouldShowTrialWelcome() -> Bool {
+        // Show welcome alert if:
+        // 1. User hasn't seen it yet
+        // 2. Trial is active (not purchased)
+        // 3. Not expired yet
+        let hasShown = UserDefaults.standard.bool(forKey: hasShownTrialWelcomeKey)
+        return !hasShown && isTrialActive && !PurchaseManager.shared.isPurchased
+    }
+
+    func markTrialWelcomeAsShown() {
+        UserDefaults.standard.set(true, forKey: hasShownTrialWelcomeKey)
+        UserDefaults.standard.synchronize()
+    }
+
     // MARK: - Reset (for testing only)
 
     #if DEBUG
     func resetTrial() {
         UserDefaults.standard.removeObject(forKey: firstLaunchDateKey)
         UserDefaults.standard.removeObject(forKey: "hasLifetimeLicense")
+        UserDefaults.standard.removeObject(forKey: hasShownTrialWelcomeKey)
         UserDefaults.standard.synchronize()
 
         setupTrialPeriod()

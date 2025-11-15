@@ -21,42 +21,43 @@ struct PurchaseView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
-                    // App Icon & Title
-                    VStack(spacing: 16) {
-                        Image(systemName: "shield.checkered")
-                            .font(.system(size: 80))
-                            .foregroundStyle(.blue.gradient)
-
-                        Text(NSLocalizedString("purchase.title", comment: ""))
-                            .font(.title.bold())
-                            .multilineTextAlignment(.center)
-
-                        Text(NSLocalizedString("purchase.subtitle", comment: ""))
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    .padding(.top, 32)
-
-                    // Trial Status
+                VStack(spacing: 28) {
+                    // Header - Trial ended message
                     if trialManager.isTrialExpired {
                         VStack(spacing: 8) {
-                            Text(NSLocalizedString("purchase.trialExpired", comment: ""))
-                                .font(.headline)
-                                .foregroundColor(.red)
+                            Text(NSLocalizedString("purchase.trialEndedHeading", comment: ""))
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.center)
 
-                            Text(NSLocalizedString("purchase.unlockFeatures", comment: ""))
-                                .font(.subheadline)
+                            Text(NSLocalizedString("purchase.trialEndedSubheading", comment: ""))
+                                .font(.system(size: 15, weight: .regular))
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                         }
-                        .padding()
-                        .background(Color.red.opacity(0.1))
-                        .cornerRadius(12)
-                        .padding(.horizontal)
+                        .padding(.top, 30)
+                        .padding(.horizontal, 24)
                     }
+
+                    // Price Display - Large and prominent
+                    VStack(spacing: 0) {
+                        if let product = purchaseManager.products.first {
+                            Text(product.displayPrice)
+                                .font(.system(size: 64, weight: .bold))
+                                .foregroundStyle(.primary)
+                        } else if purchaseManager.isLoading {
+                            // Loading state
+                            ProgressView()
+                                .scaleEffect(1.2)
+                                .padding(.vertical, 20)
+                        } else {
+                            // Placeholder when no product loaded
+                            Text("¥300")
+                                .font(.system(size: 64, weight: .bold))
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                    .padding(.top, trialManager.isTrialExpired ? 24 : 30)
 
                     // Features List
                     VStack(alignment: .leading, spacing: 16) {
@@ -65,79 +66,71 @@ struct PurchaseView: View {
                         FeatureRow(icon: "clock.fill", title: NSLocalizedString("purchase.feature.autoDelete", comment: ""))
                         FeatureRow(icon: "infinity", title: NSLocalizedString("purchase.feature.unlimited", comment: ""))
                     }
-                    .padding()
+                    .padding(24)
                     .background(Color(.systemGray6))
                     .cornerRadius(16)
-                    .padding(.horizontal)
+                    .padding(.horizontal, 24)
 
-                    // Important Notice: Not a subscription
-                    VStack(spacing: 12) {
-                        HStack {
+                    // Simple explanation
+                    Text(NSLocalizedString("purchase.simpleExplanation", comment: ""))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.top, 4)
+
+                    // Product loading error state
+                    if let error = purchaseManager.purchaseError {
+                        VStack(spacing: 12) {
                             Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 32))
                                 .foregroundColor(.orange)
-                            Text(NSLocalizedString("purchase.important", comment: ""))
-                                .font(.headline)
-                        }
-
-                        Text(NSLocalizedString("purchase.oneTimePayment", comment: ""))
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-
-                    // Product & Price
-                    if let product = purchaseManager.products.first {
-                        VStack(spacing: 16) {
-                            Text(product.displayName)
-                                .font(.title2.bold())
-
-                            Text(product.displayPrice)
-                                .font(.system(size: 48, weight: .bold))
-                                .foregroundStyle(.blue.gradient)
-
-                            Text(NSLocalizedString("purchase.lifetimeAccess", comment: ""))
-                                .font(.caption)
+                            Text("商品情報の読み込みに失敗しました")
+                                .font(.subheadline)
                                 .foregroundColor(.secondary)
-
-                            // Purchase Button
-                            Button(action: {
+                            Button("再読み込み") {
                                 Task {
-                                    await purchaseProduct()
+                                    await purchaseManager.loadProducts()
                                 }
-                            }) {
-                                HStack {
-                                    if purchaseManager.isLoading {
-                                        ProgressView()
-                                            .tint(.white)
-                                    } else {
-                                        Text(NSLocalizedString("purchase.button", comment: ""))
-                                            .font(.headline)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
                             }
-                            .disabled(purchaseManager.isLoading)
-                            .padding(.horizontal)
+                            .buttonStyle(.bordered)
                         }
-                        .padding(.vertical)
-                    } else {
-                        if purchaseManager.isLoading {
-                            ProgressView()
-                                .padding()
-                        } else {
-                            Text(NSLocalizedString("purchase.loadingProducts", comment: ""))
-                                .foregroundColor(.secondary)
-                                .padding()
-                        }
+                        .padding(.vertical, 16)
                     }
+
+                    Spacer(minLength: 20)
+
+                    // CTA: Purchase Button - Large and prominent
+                    Button(action: {
+                        Task {
+                            if purchaseManager.products.isEmpty {
+                                await purchaseManager.loadProducts()
+                            } else {
+                                await purchaseProduct()
+                            }
+                        }
+                    }) {
+                        HStack {
+                            if purchaseManager.isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                            } else if let product = purchaseManager.products.first {
+                                Text("\(product.displayPrice)で今すぐ購入")
+                                    .font(.title3.bold())
+                            } else {
+                                Text("¥300で今すぐ購入")
+                                    .font(.title3.bold())
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(16)
+                        .shadow(color: .blue.opacity(0.3), radius: 10, x: 0, y: 5)
+                    }
+                    .disabled(purchaseManager.isLoading)
+                    .padding(.horizontal, 24)
 
                     // Restore Purchases Button
                     Button(action: {
@@ -150,22 +143,21 @@ struct PurchaseView: View {
                             .foregroundColor(.blue)
                     }
                     .disabled(purchaseManager.isLoading)
+                    .padding(.top, 12)
 
-                    // Terms & Privacy (optional)
-                    HStack(spacing: 16) {
-                        Button(NSLocalizedString("purchase.terms", comment: "")) {
-                            // Open terms
+                    // "Decide Later" option - small text link at bottom
+                    if !trialManager.isTrialExpired {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Text(NSLocalizedString("purchase.decideLater", comment: ""))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                        Button(NSLocalizedString("purchase.privacy", comment: "")) {
-                            // Open privacy policy
-                        }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
                     }
-                    .padding(.bottom, 32)
+
+                    Spacer(minLength: 32)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
