@@ -21,10 +21,10 @@ struct PurchaseView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 28) {
+                VStack(spacing: 20) {
                     // Header - Trial ended message
                     if trialManager.isTrialExpired {
-                        VStack(spacing: 8) {
+                        VStack(spacing: 4) {
                             Text(NSLocalizedString("purchase.trialEndedHeading", comment: ""))
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundColor(.primary)
@@ -57,7 +57,7 @@ struct PurchaseView: View {
                                 .foregroundStyle(.primary)
                         }
                     }
-                    .padding(.top, trialManager.isTrialExpired ? 24 : 30)
+                    .padding(.top, trialManager.isTrialExpired ? 16 : 30)
 
                     // Features List
                     VStack(alignment: .leading, spacing: 16) {

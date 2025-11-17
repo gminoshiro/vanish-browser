@@ -2925,13 +2925,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your 7-day free trial has ended"
+            "value" : "Thank you for trying Vanish for 7 days"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "7日間の無料トライアルが終了しました"
+            "value" : "7日間のご利用ありがとうございました"
           }
         }
       }
