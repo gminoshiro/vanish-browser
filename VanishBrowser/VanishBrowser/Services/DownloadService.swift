@@ -496,6 +496,13 @@ class DownloadService {
 
     // ファイルをダウンロードして保存（フォルダ指定可能）
     func downloadFile(from url: URL, fileName: String, toFolder folder: String? = nil, completion: @escaping (Bool) -> Void) {
+        // Check if feature is accessible
+        guard TrialManager.shared.canAccessPremiumFeatures() else {
+            print("🔒 Download blocked: Trial expired")
+            completion(false)
+            return
+        }
+
         print("📥 ダウンロード開始: \(fileName)")
 
         let session = URLSession(configuration: .default, delegate: DownloadDelegate.shared, delegateQueue: nil)

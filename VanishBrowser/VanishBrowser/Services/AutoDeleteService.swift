@@ -325,6 +325,12 @@ class AutoDeleteService: ObservableObject {
 
     // 手動削除（選択された項目のみ）
     func performManualDelete(history: Bool, downloads: Bool, bookmarks: Bool, tabs: Bool = false) {
+        // Check if feature is accessible
+        guard TrialManager.shared.canAccessPremiumFeatures() else {
+            print("🔒 Auto-delete blocked: Trial expired")
+            return
+        }
+
         print("🗑️ 手動削除開始...")
         print("📋 削除対象:")
         print("  - 閲覧履歴: \(history ? "ON" : "OFF")")
