@@ -277,7 +277,8 @@ class BrowserViewModel: NSObject, ObservableObject {
 
                 // コンテキストメニューをブロック
                 function blockContextMenu(e) {
-                    if (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO') {
+                    // 画像のみブロック（動画はカスタムプレーヤーで処理）
+                    if (e.target.tagName === 'IMG') {
                         e.preventDefault();
                         e.stopPropagation();
                         return false;
@@ -293,13 +294,13 @@ class BrowserViewModel: NSObject, ObservableObject {
                 var hasMoved = false;
 
                 function handleTouchStart(e) {
-                    // 画像または動画かどうかチェック
+                    // 画像のみチェック（動画は除外）
                     var target = e.target;
-                    if (!target || (target.tagName !== 'IMG' && target.tagName !== 'VIDEO')) {
+                    if (!target || target.tagName !== 'IMG') {
                         return;
                     }
 
-                    console.log('🖼️ Media touchstart detected:', target.src);
+                    console.log('🖼️ Image touchstart detected:', target.src);
 
                     touchStartX = e.touches[0].clientX;
                     touchStartY = e.touches[0].clientY;
@@ -308,28 +309,16 @@ class BrowserViewModel: NSObject, ObservableObject {
                     // 長押しタイマー開始
                     longPressTimer = setTimeout(function() {
                         if (!hasMoved) {
-                            console.log('⏰ Long press triggered for:', target.src);
-                            var mediaUrl = target.src || target.currentSrc;
+                            console.log('⏰ Long press triggered for image:', target.src);
+                            var imageUrl = target.src || target.currentSrc;
 
-                            // 動画の場合はsourceタグもチェック
-                            if (target.tagName === 'VIDEO' && !mediaUrl) {
-                                var sources = target.querySelectorAll('source');
-                                if (sources.length > 0) {
-                                    mediaUrl = sources[0].src;
-                                }
-                            }
-
-                            if (mediaUrl) {
+                            if (imageUrl) {
                                 try {
-                                    var isVideo = target.tagName === 'VIDEO';
-                                    var handler = isVideo ? 'videoDownload' : 'imageLongPress';
-                                    var defaultName = isVideo ? 'video.mp4' : 'image.jpg';
-
-                                    window.webkit.messageHandlers[handler].postMessage({
-                                        url: mediaUrl,
-                                        fileName: mediaUrl.split('/').pop().split('?')[0] || defaultName
+                                    window.webkit.messageHandlers.imageLongPress.postMessage({
+                                        url: imageUrl,
+                                        fileName: imageUrl.split('/').pop().split('?')[0] || 'image.jpg'
                                     });
-                                    console.log('✅ Message sent successfully to', handler);
+                                    console.log('✅ Image long press message sent');
                                 } catch (err) {
                                     console.error('❌ Error sending message:', err);
                                 }
@@ -383,7 +372,6 @@ class BrowserViewModel: NSObject, ObservableObject {
         super.init()
 
         // Message handlerを追加（WebView作成後に追加）
-        webView.configuration.userContentController.add(self, name: "videoDownload")
         webView.configuration.userContentController.add(self, name: "imageLongPress")
         webView.configuration.userContentController.add(self, name: "videoDetected")
         webView.configuration.userContentController.add(self, name: "videoStopped")
@@ -421,7 +409,6 @@ class BrowserViewModel: NSObject, ObservableObject {
 
     deinit {
         // Message handlerを削除してメモリリークを防ぐ
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDownload")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "imageLongPress")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDetected")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoStopped")
@@ -436,7 +423,6 @@ class BrowserViewModel: NSObject, ObservableObject {
         progressObserver?.invalidate()
 
         // 古いWebViewのメッセージハンドラーを削除
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDownload")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "imageLongPress")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoDetected")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "videoStopped")
@@ -450,7 +436,6 @@ class BrowserViewModel: NSObject, ObservableObject {
         webView.uiDelegate = self
 
         // 新しいWebViewにメッセージハンドラーを追加
-        webView.configuration.userContentController.add(self, name: "videoDownload")
         webView.configuration.userContentController.add(self, name: "imageLongPress")
         webView.configuration.userContentController.add(self, name: "videoDetected")
         webView.configuration.userContentController.add(self, name: "videoStopped")
@@ -884,21 +869,6 @@ extension BrowserViewModel: WKScriptMessageHandler {
                         "url": url,
                         "fileName": fileName
                     ]
-                )
-            }
-        } else if message.name == "videoDownload",
-           let dict = message.body as? [String: String],
-           let urlString = dict["url"],
-           let url = URL(string: urlString),
-           let fileName = dict["fileName"] {
-
-            DispatchQueue.main.async {
-                print("🎬 動画長押し検出: \(fileName)")
-                // メニューを表示するための通知
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("ShowMediaMenu"),
-                    object: nil,
-                    userInfo: ["url": url, "fileName": fileName, "type": "video"]
                 )
             }
         } else if message.name == "imageLongPress",
