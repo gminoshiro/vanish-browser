@@ -319,11 +319,17 @@ class VideoPlayerViewModel: NSObject, ObservableObject {
         }
 
         // 動画の長さを取得
-        player.currentItem?.asset.loadValuesAsynchronously(forKeys: ["duration"]) { [weak self] in
-            DispatchQueue.main.async {
-                if let duration = self?.player.currentItem?.asset.duration {
-                    self?.duration = CMTimeGetSeconds(duration)
-                    print("🎥 動画の長さ: \(CMTimeGetSeconds(duration))秒")
+        Task { [weak self] in
+            guard let asset = self?.player.currentItem?.asset else { return }
+            if #available(iOS 15.0, *) {
+                do {
+                    let duration = try await asset.load(.duration)
+                    await MainActor.run {
+                        self?.duration = CMTimeGetSeconds(duration)
+                        print("🎥 動画の長さ: \(CMTimeGetSeconds(duration))秒")
+                    }
+                } catch {
+                    print("❌ 動画の長さ取得エラー: \(error.localizedDescription)")
                 }
             }
         }

@@ -157,7 +157,7 @@ struct RootView: View {
                             Text("\(url.lastPathComponent)をダウンロードフォルダに保存しました。")
                         }
                     }
-                    .onChange(of: importedFileURL) { _, newValue in
+                    .onChange(of: importedFileURL) { newValue in
                         if newValue != nil {
                             showImportSuccess = true
                         }

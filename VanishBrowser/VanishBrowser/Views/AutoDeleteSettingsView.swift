@@ -38,19 +38,19 @@ struct AutoDeleteSettingsView: View {
 
                 Section(header: Text(NSLocalizedString("settings.deleteTargets", comment: "")).padding(.top, 8)) {
                     Toggle(NSLocalizedString("browser.history", comment: ""), isOn: $autoDeleteService.deleteBrowsingHistory)
-                        .onChange(of: autoDeleteService.deleteBrowsingHistory) { _, _ in
+                        .onChange(of: autoDeleteService.deleteBrowsingHistory) { _ in
                             checkDeleteTargets()
                         }
                     Toggle(NSLocalizedString("downloads.title", comment: ""), isOn: $autoDeleteService.deleteDownloads)
-                        .onChange(of: autoDeleteService.deleteDownloads) { _, _ in
+                        .onChange(of: autoDeleteService.deleteDownloads) { _ in
                             checkDeleteTargets()
                         }
                     Toggle(NSLocalizedString("bookmarks.title", comment: ""), isOn: $autoDeleteService.deleteBookmarks)
-                        .onChange(of: autoDeleteService.deleteBookmarks) { _, _ in
+                        .onChange(of: autoDeleteService.deleteBookmarks) { _ in
                             checkDeleteTargets()
                         }
                     Toggle(NSLocalizedString("tabs.title", comment: ""), isOn: $autoDeleteService.deleteTabs)
-                        .onChange(of: autoDeleteService.deleteTabs) { _, _ in
+                        .onChange(of: autoDeleteService.deleteTabs) { _ in
                             checkDeleteTargets()
                         }
                 }

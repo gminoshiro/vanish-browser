@@ -351,7 +351,7 @@ struct BrowserView: View {
                 .ignoresSafeArea(.keyboard)
             }
         }
-        .onChange(of: viewModel.currentURL) { _, newURL in
+        .onChange(of: viewModel.currentURL) { newURL in
             urlText = newURL
 
             // タブのURLを更新
@@ -359,18 +359,13 @@ struct BrowserView: View {
                 tabManager.updateTab(tabId, url: newURL)
             }
         }
-        .onChange(of: viewModel.webView.title) { _, newTitle in
+        .onChange(of: viewModel.webView.title) { newTitle in
             // タブのタイトルを更新
             if let title = newTitle, let tabId = tabManager.currentTabId {
                 tabManager.updateTab(tabId, title: title)
             }
         }
-        .onChange(of: tabManager.currentTabId) { oldTabId, newTabId in
-            // 前のタブのスナップショットを取得
-            if let oldId = oldTabId {
-                captureSnapshot(for: oldId)
-            }
-
+        .onChange(of: tabManager.currentTabId) { newTabId in
             // タブが切り替わったらそのタブのURLをロード
             if let tab = tabManager.currentTab {
                 if !tab.url.isEmpty {
@@ -383,7 +378,7 @@ struct BrowserView: View {
                 }
             }
         }
-        .onChange(of: pageSearchText) { _, newText in
+        .onChange(of: pageSearchText) { newText in
             // 検索テキストが変更されたら検索実行
             viewModel.searchInPage(newText)
         }

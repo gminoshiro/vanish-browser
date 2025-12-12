@@ -113,7 +113,7 @@ struct PasscodeView: View {
                 }
             }
         }
-        .onChange(of: passcode) { oldValue, newValue in
+        .onChange(of: passcode) { newValue in
             // passcodeが外部から空にされた場合、enteredDigitsもクリア
             if newValue.isEmpty && !enteredDigits.isEmpty {
                 enteredDigits.removeAll()
