@@ -80,7 +80,7 @@ struct PurchaseView: View {
                         .padding(.top, 4)
 
                     // Product loading error state
-                    if let error = purchaseManager.purchaseError {
+                    if purchaseManager.purchaseError != nil {
                         VStack(spacing: 12) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 32))

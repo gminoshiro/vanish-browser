@@ -20,34 +20,50 @@ class TrialManager: ObservableObject {
     @Published var trialDaysRemaining: Int = 0
     @Published var trialEndDate: Date?
 
-    private let firstLaunchDateKey = "firstLaunchDate"
+    private let firstLaunchDateKey = "com.vanishbrowser.firstLaunchDate"
     private let hasCompletedOnboardingKey = "hasCompletedOnboarding"
     private let hasShownTrialWelcomeKey = "hasShownTrialWelcome"
 
     private init() {
+        migrateFromUserDefaults() // Migrate existing users
         setupTrialPeriod()
         updateTrialStatus()
+    }
+
+    // MARK: - Migration
+
+    private func migrateFromUserDefaults() {
+        // Migrate existing trial data from UserDefaults to Keychain
+        if let oldDate = UserDefaults.standard.object(forKey: "firstLaunchDate") as? Date,
+           !KeychainHelper.shared.exists(forKey: firstLaunchDateKey) {
+            _ = KeychainHelper.shared.save(oldDate, forKey: firstLaunchDateKey)
+            UserDefaults.standard.removeObject(forKey: "firstLaunchDate")
+            print("📦 Migrated trial data from UserDefaults to Keychain")
+        }
     }
 
     // MARK: - Trial Setup
 
     private func setupTrialPeriod() {
-        // Check if first launch date exists
-        if let existingDate = UserDefaults.standard.object(forKey: firstLaunchDateKey) as? Date {
-            print("📅 First launch date exists: \(existingDate)")
+        // Check if first launch date exists in Keychain
+        if let existingDate = KeychainHelper.shared.getDate(forKey: firstLaunchDateKey) {
+            print("📅 First launch date exists (Keychain): \(existingDate)")
+            print("✅ Keychain persistence working - date survived app deletion!")
         } else {
-            // First launch - record the date
+            // First launch - record the date in Keychain
             let firstLaunch = Date()
-            UserDefaults.standard.set(firstLaunch, forKey: firstLaunchDateKey)
-            UserDefaults.standard.synchronize()
-            print("🎉 First launch recorded: \(firstLaunch)")
+            if KeychainHelper.shared.save(firstLaunch, forKey: firstLaunchDateKey) {
+                print("🎉 First launch recorded (Keychain): \(firstLaunch)")
+            } else {
+                print("❌ Failed to save first launch date to Keychain")
+            }
         }
     }
 
     // MARK: - Trial Status
 
     func updateTrialStatus() {
-        guard let firstLaunchDate = UserDefaults.standard.object(forKey: firstLaunchDateKey) as? Date else {
+        guard let firstLaunchDate = KeychainHelper.shared.getDate(forKey: firstLaunchDateKey) else {
             // No first launch date - set as expired
             isTrialActive = false
             isTrialExpired = true
@@ -158,7 +174,10 @@ class TrialManager: ObservableObject {
 
     #if DEBUG
     func resetTrial() {
-        UserDefaults.standard.removeObject(forKey: firstLaunchDateKey)
+        // Delete from Keychain
+        _ = KeychainHelper.shared.delete(forKey: firstLaunchDateKey)
+
+        // Delete from UserDefaults
         UserDefaults.standard.removeObject(forKey: "hasLifetimeLicense")
         UserDefaults.standard.removeObject(forKey: hasShownTrialWelcomeKey)
         UserDefaults.standard.synchronize()

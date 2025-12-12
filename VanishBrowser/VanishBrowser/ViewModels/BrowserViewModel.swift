@@ -845,7 +845,7 @@ extension BrowserViewModel: WKScriptMessageHandler {
         if message.name == "videoDetected",
            let dict = message.body as? [String: String],
            let urlString = dict["url"],
-           let url = URL(string: urlString),
+           URL(string: urlString) != nil,
            let fileName = dict["fileName"] {
 
             DispatchQueue.main.async {

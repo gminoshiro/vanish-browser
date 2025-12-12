@@ -99,7 +99,7 @@ struct TabManagerView: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
-                    .onChange(of: tabManager.currentTabId) { _, newTabId in
+                    .onChange(of: tabManager.currentTabId) { newTabId in
                         if let newTabId = newTabId {
                             withAnimation {
                                 proxy.scrollTo(newTabId, anchor: .center)

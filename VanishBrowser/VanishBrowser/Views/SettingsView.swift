@@ -58,7 +58,7 @@ struct SettingsView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(trialManager.getTrialStatusMessage())
                                         .font(.headline)
-                                    if let endDate = trialManager.trialEndDate {
+                                    if trialManager.trialEndDate != nil {
                                         Text("終了日: \(trialManager.getTrialEndDateString())")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
@@ -137,7 +137,7 @@ struct SettingsView: View {
                 // セキュリティ設定
                 Section(header: Text("settings.security").padding(.top, 8), footer: Text(authEnabled ? (useBiometric ? LocalizedStringKey("settings.security.biometric.footer") : LocalizedStringKey("settings.security.passcode.footer")) : LocalizedStringKey("settings.security.disabled.footer"))) {
                     Toggle(LocalizedStringKey("settings.useAuthentication"), isOn: $authEnabled)
-                        .onChange(of: authEnabled) { _, newValue in
+                        .onChange(of: authEnabled) { newValue in
                             if newValue && authPassword.isEmpty {
                                 // 認証ONにした時にパスコード未設定なら設定画面を表示
                                 showPasscodeSettings = true
@@ -176,7 +176,7 @@ struct SettingsView: View {
                         // 生体認証トグル（パスコード設定済みの場合のみ有効）
                         Toggle(LocalizedStringKey("settings.useBiometric"), isOn: $useBiometric)
                             .disabled(authPassword.isEmpty)
-                            .onChange(of: useBiometric) { _, newValue in
+                            .onChange(of: useBiometric) { newValue in
                                 if newValue && authPassword.isEmpty {
                                     // パスコード未設定なら警告
                                     useBiometric = false
